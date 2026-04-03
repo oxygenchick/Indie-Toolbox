@@ -181,9 +181,10 @@
             border: 2px inset #888;
             background: #fff;
             cursor: ew-resize;
+            overflow: hidden;
         }
 
-        canvas {
+        .canvas-container canvas {
             width: 100%;
             height: 120px;
             display: block;
@@ -497,6 +498,7 @@
                     const arrayBuffer = await file.arrayBuffer();
                     const buffer = await audioContext.decodeAudioData(arrayBuffer);
 
+                    const defaultFade = Math.min(1.5, buffer.duration * 0.1);
                     tracks.push({
                         id: 't' + Date.now() + Math.random().toString(36).substr(2,8),
                         filename: file.name,
@@ -504,8 +506,8 @@
                         duration: buffer.duration,
                         trimStart: 0,
                         trimEnd: buffer.duration,
-                        fadeInDuration: 1.5,
-                        fadeOutDuration: 1.5,
+                        fadeInDuration: defaultFade,
+                        fadeOutDuration: defaultFade,
                         volume: 1,
                         muted: false,
                         offset: 0
@@ -774,7 +776,7 @@
                         </div>
                         <div class="action-buttons">
                             <button class="mac-btn mac-btn-default" onclick="toggleTrack('${track.id}')">&#9654; Play w/ Fades</button>
-                            <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; Trim & Bake</button>
+                            <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; Trim</button>
                             <button class="mac-btn mac-btn-danger" onclick="deleteTrack('${track.id}')">&#9003; Delete</button>
                         </div>
                         <div class="info-text">Thick lines = trim boundaries &nbsp;|&nbsp; Thin lines = fade start/end</div>
@@ -801,18 +803,22 @@
             if (!track.buffer) return;
 
             const data = track.buffer.getChannelData(0);
-            const step = Math.ceil(data.length / w);
+            const step = data.length / w;
 
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1;
             ctx.beginPath();
             for (let x = 0; x < w; x++) {
+                const from = Math.floor(x * step);
+                const to = Math.min(Math.floor((x + 1) * step), data.length);
+                if (from >= data.length) break;
                 let minv = 1, maxv = -1;
-                for (let i = Math.floor(x * step); i < Math.min((x + 1) * step, data.length); i++) {
+                for (let i = from; i < to; i++) {
                     const v = data[i];
                     if (v < minv) minv = v;
                     if (v > maxv) maxv = v;
                 }
+                if (minv > maxv) continue;
                 ctx.moveTo(x, h / 2 * (1 + minv));
                 ctx.lineTo(x, h / 2 * (1 + maxv));
             }
@@ -920,10 +926,18 @@
                 const percent = clickX / rect.width;
                 const newTime = percent * track.duration;
 
-                if (draggingType === 'trimStart') track.trimStart = Math.max(0, Math.min(newTime, track.trimEnd - 0.2));
-                else if (draggingType === 'trimEnd') track.trimEnd = Math.max(track.trimStart + 0.2, Math.min(newTime, track.duration));
-                else if (draggingType === 'fadeInEnd') track.fadeInDuration = Math.max(0, Math.min(newTime - track.trimStart, track.trimEnd - track.trimStart));
-                else if (draggingType === 'fadeOutStart') track.fadeOutDuration = Math.max(0, Math.min(track.trimEnd - newTime, track.trimEnd - track.trimStart));
+                const halfDur = () => (track.trimEnd - track.trimStart) / 2;
+                if (draggingType === 'trimStart') {
+                    track.trimStart = Math.max(0, Math.min(newTime, track.trimEnd - 0.2));
+                    clampFades(track);
+                } else if (draggingType === 'trimEnd') {
+                    track.trimEnd = Math.max(track.trimStart + 0.2, Math.min(newTime, track.duration));
+                    clampFades(track);
+                } else if (draggingType === 'fadeInEnd') {
+                    track.fadeInDuration = Math.max(0, Math.min(newTime - track.trimStart, halfDur()));
+                } else if (draggingType === 'fadeOutStart') {
+                    track.fadeOutDuration = Math.max(0, Math.min(track.trimEnd - newTime, halfDur()));
+                }
 
                 drawWaveform(canvas, track);
                 syncTrackInputs(trackId, track);
@@ -958,12 +972,19 @@
             renderGlobalTimeline();
         }
 
+        function clampFades(track) {
+            const halfDur = (track.trimEnd - track.trimStart) / 2;
+            track.fadeInDuration = Math.min(track.fadeInDuration, halfDur);
+            track.fadeOutDuration = Math.min(track.fadeOutDuration, halfDur);
+        }
+
         function updateTrim(id, prop, value) {
             const track = tracks.find(t => t.id === id);
             if (!track) return;
             if (prop === 'trimStart') value = Math.max(0, Math.min(value, track.trimEnd - 0.2));
             if (prop === 'trimEnd') value = Math.max(track.trimStart + 0.2, Math.min(value, track.duration));
             track[prop] = value;
+            clampFades(track);
             const canvas = document.getElementById(`canvas-${id}`);
             if (canvas) drawWaveform(canvas, track);
             syncTrackInputs(id, track);
@@ -973,8 +994,8 @@
         function updateFade(id, prop, value) {
             const track = tracks.find(t => t.id === id);
             if (!track) return;
-            const max = track.trimEnd - track.trimStart;
-            track[prop] = Math.max(0, Math.min(value, max));
+            const halfDur = (track.trimEnd - track.trimStart) / 2;
+            track[prop] = Math.max(0, Math.min(value, halfDur));
             const canvas = document.getElementById(`canvas-${id}`);
             if (canvas) drawWaveform(canvas, track);
             syncTrackInputs(id, track);
@@ -1087,11 +1108,11 @@
             track.duration = newBuffer.duration;
             track.trimStart = 0;
             track.trimEnd = newBuffer.duration;
-            track.fadeInDuration = 0;
-            track.fadeOutDuration = 0;
+            const newFade = Math.min(1.5, newBuffer.duration * 0.1);
+            track.fadeInDuration = newFade;
+            track.fadeOutDuration = newFade;
 
             renderTracks();
-            alert('Track trimmed and fades baked!');
         }
 
         function deleteTrack(id) {
