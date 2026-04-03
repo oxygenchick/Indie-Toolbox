@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Converter</title>
+    <title>Image Editor</title>
     <style>
         @font-face {
             font-family: 'Chicago';
@@ -275,7 +275,7 @@
         <div class="mac-window">
             <div class="title-bar">
                 <div class="title-bar-lines"></div>
-                <div class="title-bar-text">Image Converter</div>
+                <div class="title-bar-text">Image Editor</div>
             </div>
             <div class="window-content">
                 <div class="upload-area" id="upload-area">
@@ -283,6 +283,9 @@
                     <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">Drop image here</div>
                     <div style="font-size:12px;color:#666;">...or click to select a file</div>
                     <input type="file" id="fileInput" accept="image/*,.heic,.heif" style="display:none;">
+                </div>
+                <div style="text-align:center;margin-top:8px;">
+                    <button class="mac-btn" onclick="pasteFromClipboard()">&#9112; Paste from clipboard</button>
                 </div>
             </div>
         </div>
@@ -299,7 +302,7 @@
                 </div>
 
                 <div id="crop-bar" class="crop-bar" style="display:none;">
-                    <button class="mac-btn mac-btn-default" onclick="applyCrop()">&#10003; Apply Crop</button>
+                    <button class="mac-btn" onclick="applyCrop()">&#10003; Apply Crop</button>
                     <button class="mac-btn" onclick="cancelCrop()">&#10005; Cancel</button>
                     <span class="crop-hint">Drag corners to resize &bull; drag inside to move</span>
                 </div>
@@ -347,7 +350,7 @@
                 <div class="action-buttons">
                     <button class="mac-btn" onclick="enterCropMode()" id="btn-crop">&#9986; Crop</button>
                     <button class="mac-btn" onclick="resetImage()">&#8634; Reset</button>
-                    <button class="mac-btn mac-btn-default" onclick="downloadImage()">&#128190; Download</button>
+                    <button class="mac-btn" onclick="downloadImage()">&#8615; Download</button>
                 </div>
             </div>
         </div>
@@ -422,6 +425,42 @@
             originalFileHandle = null;
             if (e.target.files.length) loadFile(e.target.files[0]);
             e.target.value = '';
+        });
+
+        async function pasteFromClipboard() {
+            try {
+                const items = await navigator.clipboard.read();
+                for (const item of items) {
+                    const imageType = item.types.find(t => t.startsWith('image/'));
+                    if (imageType) {
+                        const blob = await item.getType(imageType);
+                        const ext = imageType.split('/')[1] || 'png';
+                        const file = new File([blob], `clipboard.${ext}`, { type: imageType });
+                        originalFileHandle = null;
+                        loadFile(file);
+                        return;
+                    }
+                }
+                alert('No image found in clipboard.');
+            } catch (e) {
+                if (e.name !== 'NotAllowedError') console.error(e);
+                alert('Could not read clipboard. Make sure you have an image copied.');
+            }
+        }
+
+        document.addEventListener('paste', (e) => {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    const blob = item.getAsFile();
+                    if (blob) {
+                        originalFileHandle = null;
+                        loadFile(blob);
+                    }
+                    return;
+                }
+            }
         });
 
         function isHeic(file) {

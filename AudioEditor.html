@@ -406,7 +406,7 @@
             </div>
             <div class="window-content">
                 <div class="upload-area" id="upload-area">
-                    <span class="upload-icon">&#128190;</span>
+                    <span class="upload-icon">&#9835;</span>
                     <div style="font-weight:bold;font-size:14px;margin-bottom:6px;">Drop audio files here</div>
                     <div style="font-size:12px;color:#666;">...or click to select files</div>
                     <input type="file" id="fileInput" accept="audio/*" multiple style="display:none;">
@@ -446,9 +446,9 @@
             </div>
             <div id="global-timeline-area"></div>
             <div class="global-controls">
-                <button onclick="toggleMixPlay()" id="mix-play-btn" class="mac-btn mac-btn-default">&#9654; Play Mix</button>
+                <button onclick="toggleMixPlay()" id="mix-play-btn" class="mac-btn">&#9654; Play Mix</button>
                 <button onclick="stopMix()" class="mac-btn">&#9632; Stop Mix</button>
-                <button onclick="downloadMix()" class="mac-btn">&#128190; Download WAV</button>
+                <button onclick="downloadMix()" class="mac-btn">&#8615; Download WAV</button>
             </div>
         </div>
 
@@ -778,7 +778,7 @@
                             <div style="display:flex;align-items:end;padding-bottom:2px;"><label style="margin:0;cursor:pointer;"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)">Mute in mix</label></div>
                         </div>
                         <div class="action-buttons">
-                            <button class="mac-btn mac-btn-default" onclick="toggleTrack('${track.id}')">&#9654; Play w/ Fades</button>
+                            <button class="mac-btn" onclick="toggleTrack('${track.id}')">&#9654; Play w/ Fades</button>
                             <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; Trim</button>
                             <button class="mac-btn mac-btn-danger" onclick="deleteTrack('${track.id}')">&#9003; Delete</button>
                         </div>
