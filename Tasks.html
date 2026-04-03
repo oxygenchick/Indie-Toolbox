@@ -234,7 +234,62 @@
             color: #666;
             padding: 8px 16px;
             border-top: 1px solid #ccc;
+            flex-shrink: 0;
         }
+
+        .tasks-panel-scroll {
+            flex: 1;
+            min-height: 0;
+            overflow-y: auto;
+        }
+
+        .task-month-header {
+            font-size: 12px;
+            font-weight: bold;
+            padding: 6px 16px 4px;
+            margin-top: 4px;
+            border-bottom: 1px solid #000;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: #f4f4f4;
+        }
+        .task-month-header:first-child { margin-top: 0; }
+        .task-month-header:hover { background: #eaeaea; }
+        .task-month-header--done {
+            background: #ececec;
+            font-size: 11px;
+        }
+        .task-month-chevron {
+            display: inline-block;
+            width: 1em;
+            text-align: center;
+        }
+        .task-month-list {
+            margin: 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .task-done-block {
+            border-top: 2px solid #ccc;
+            margin-top: 4px;
+        }
+        .task-done-toggle {
+            width: 100%;
+            text-align: left;
+            font-size: 12px;
+            padding: 8px 16px;
+            border: none;
+            border-bottom: 1px solid #ccc;
+            background: #e8e8e8;
+            cursor: pointer;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-weight: bold;
+        }
+        .task-done-toggle:hover { background: #ddd; }
+        #task-done-inner .task-month-header { background: #f0f0f0; }
 
         .pomo-bar {
             display: flex;
@@ -527,7 +582,13 @@
                     <button class="mac-btn" onclick="addTask()">&#10010; Add</button>
                 </div>
 
-                <ul class="task-list" id="task-list"></ul>
+                <div class="tasks-panel-scroll">
+                    <div id="tasks-active-area"></div>
+                    <div class="task-done-block" id="task-done-block" style="display:none">
+                        <button type="button" class="task-done-toggle" id="task-done-toggle" onclick="toggleDoneSection()">Completed</button>
+                        <div id="task-done-inner"></div>
+                    </div>
+                </div>
                 <div class="task-count" id="task-count"></div>
             </div>
 
@@ -561,6 +622,26 @@
     let tasks = [];
     let editingTaskIndex = null;
     let renameEscapeBlur = false;
+
+    function readTaskUIState() {
+        try {
+            const s = localStorage.getItem('indietoolbox_tasks_ui');
+            if (!s) return { doneHidden: false, months: {} };
+            const o = JSON.parse(s);
+            return {
+                doneHidden: !!o.doneHidden,
+                months: o.months && typeof o.months === 'object' ? { ...o.months } : {}
+            };
+        } catch (e) {
+            return { doneHidden: false, months: {} };
+        }
+    }
+    function writeTaskUIState() {
+        try {
+            localStorage.setItem('indietoolbox_tasks_ui', JSON.stringify(taskUICollapsed));
+        } catch (e) {}
+    }
+    let taskUICollapsed = readTaskUIState();
     let notes = '';
     let goals = [];
     let fileHandle = null;
@@ -605,68 +686,175 @@
         document.getElementById('app-screen').style.display = 'flex';
     }
 
+    function isoTodayLocal() {
+        const t = new Date();
+        return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+    }
+
+    function sortedTaskDays(task) {
+        return [...(task.days || [])].filter(Boolean).sort();
+    }
+
+    function taskMonthKeyOpen(task) {
+        const d = sortedTaskDays(task);
+        if (d.length === 0) return '__undated__';
+        return d[0].slice(0, 7);
+    }
+
+    function taskMonthKeyDone(task) {
+        const d = sortedTaskDays(task);
+        if (d.length === 0) return '__undated__';
+        return d[d.length - 1].slice(0, 7);
+    }
+
+    function formatMonthKeyLabel(monthKey) {
+        if (monthKey === '__undated__') return 'No Gantt dates';
+        const [y, m] = monthKey.split('-').map(Number);
+        if (!y || !m) return monthKey;
+        return `${MONTH_NAMES[m - 1]} ${y}`;
+    }
+
+    function compareOpenIndices(ai, bi) {
+        const a = tasks[ai], b = tasks[bi];
+        const da = sortedTaskDays(a), db = sortedTaskDays(b);
+        const ka = da.length ? da[0] : '\uffff';
+        const kb = db.length ? db[0] : '\uffff';
+        if (ka !== kb) return ka < kb ? -1 : 1;
+        return ai - bi;
+    }
+
+    function compareDoneIndices(ai, bi) {
+        const da = sortedTaskDays(tasks[ai]), db = sortedTaskDays(tasks[bi]);
+        const la = da.length ? da[da.length - 1] : '';
+        const lb = db.length ? db[db.length - 1] : '';
+        if (la !== lb) return la < lb ? 1 : -1;
+        return ai - bi;
+    }
+
+    function toggleDoneSection() {
+        taskUICollapsed.doneHidden = !taskUICollapsed.doneHidden;
+        writeTaskUIState();
+        render();
+    }
+
+    function appendTaskToUl(ul, i) {
+        const task = tasks[i];
+        const li = document.createElement('li');
+        const isPomoTask = pomoState.active && pomoState.taskIndex === i;
+        li.className = 'task-item' + (task.done ? ' done' : '') + (isPomoTask ? ' pomo-active' : '');
+
+        let pomoBtn = '';
+        if (!task.done) {
+            if (isPomoTask) {
+                const timeStr = formatPomo(pomoState.remaining);
+                if (pomoState.paused) {
+                    pomoBtn = `<span class="pomo-timer">${timeStr}</span>
+                        <button class="task-btn" onclick="resumePomo()" title="Resume">&#9654;</button>
+                        <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
+                } else {
+                    pomoBtn = `<span class="pomo-timer">${timeStr}</span>
+                        <button class="task-btn" onclick="pausePomo()" title="Pause">&#10074;&#10074;</button>
+                        <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
+                }
+            } else {
+                pomoBtn = `<button class="task-btn" onclick="startPomo(${i})" title="Start Pomodoro">&#9654;</button>`;
+            }
+        }
+
+        const isEditing = editingTaskIndex === i;
+        li.innerHTML = `
+            <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${i})" ${isEditing ? 'disabled' : ''}>
+            ${isEditing
+                ? '<input class="task-rename-input" type="text" autocomplete="off">'
+                : `<span class="task-text" ondblclick="startRenameTask(${i})" title="Double-click to rename">${escapeHtml(task.text)}</span>`}
+            <div class="task-actions">
+                ${pomoBtn}
+                ${isEditing
+                    ? ''
+                    : `<button class="task-btn" onclick="startRenameTask(${i})" title="Rename">&#9998;</button>`}
+                <button class="task-btn" onclick="deleteTask(${i})" title="Delete">&#10005;</button>
+            </div>
+        `;
+        if (isEditing) {
+            const inp = li.querySelector('.task-rename-input');
+            inp.value = task.text;
+            inp.addEventListener('keydown', e => renameTaskKeydown(e, i));
+            inp.addEventListener('blur', () => commitRenameTask(i, inp.value));
+            requestAnimationFrame(() => {
+                inp.focus();
+                inp.select();
+            });
+        }
+        ul.appendChild(li);
+    }
+
+    function renderGroupedByMonth(container, indices, monthKeyFn, sectionPrefix) {
+        let currentUl = null;
+        let lastKey = null;
+        indices.forEach(i => {
+            const mk = monthKeyFn(tasks[i]);
+            if (mk !== lastKey) {
+                lastKey = mk;
+                const stateKey = sectionPrefix + mk;
+                const collapsed = !!taskUICollapsed.months[stateKey];
+                const header = document.createElement('div');
+                header.className = 'task-month-header' + (sectionPrefix === 'd:' ? ' task-month-header--done' : '');
+                const chev = collapsed ? '\u25b8' : '\u25be';
+                header.innerHTML = `<span class="task-month-chevron">${chev}</span><span>${escapeHtml(formatMonthKeyLabel(mk))}</span>`;
+                header.onclick = () => {
+                    taskUICollapsed.months[stateKey] = !taskUICollapsed.months[stateKey];
+                    writeTaskUIState();
+                    render();
+                };
+                container.appendChild(header);
+                currentUl = document.createElement('ul');
+                currentUl.className = 'task-list task-month-list';
+                if (collapsed) currentUl.style.display = 'none';
+                container.appendChild(currentUl);
+            }
+            appendTaskToUl(currentUl, i);
+        });
+    }
+
     function render() {
-        const list = document.getElementById('task-list');
+        const activeRoot = document.getElementById('tasks-active-area');
+        const doneBlock = document.getElementById('task-done-block');
+        const doneToggle = document.getElementById('task-done-toggle');
+        const doneInner = document.getElementById('task-done-inner');
         const countEl = document.getElementById('task-count');
 
         if (tasks.length === 0) {
-            list.innerHTML = '<div class="empty-state">No tasks yet. Add one above.</div>';
+            activeRoot.innerHTML = '<div class="empty-state">No tasks yet. Add one above.</div>';
+            doneBlock.style.display = 'none';
+            doneInner.innerHTML = '';
             countEl.textContent = '';
             return;
         }
 
-        list.innerHTML = '';
-        tasks.forEach((task, i) => {
-            const li = document.createElement('li');
-            const isPomoTask = pomoState.active && pomoState.taskIndex === i;
-            li.className = 'task-item' + (task.done ? ' done' : '') + (isPomoTask ? ' pomo-active' : '');
+        const openIndices = tasks.map((_, i) => i).filter(i => !tasks[i].done).sort(compareOpenIndices);
+        const doneIndices = tasks.map((_, i) => i).filter(i => tasks[i].done).sort(compareDoneIndices);
 
-            let pomoBtn = '';
-            if (!task.done) {
-                if (isPomoTask) {
-                    const timeStr = formatPomo(pomoState.remaining);
-                    if (pomoState.paused) {
-                        pomoBtn = `<span class="pomo-timer">${timeStr}</span>
-                            <button class="task-btn" onclick="resumePomo()" title="Resume">&#9654;</button>
-                            <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
-                    } else {
-                        pomoBtn = `<span class="pomo-timer">${timeStr}</span>
-                            <button class="task-btn" onclick="pausePomo()" title="Pause">&#10074;&#10074;</button>
-                            <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
-                    }
-                } else {
-                    pomoBtn = `<button class="task-btn" onclick="startPomo(${i})" title="Start Pomodoro">&#9654;</button>`;
-                }
+        activeRoot.innerHTML = '';
+        if (openIndices.length === 0) {
+            activeRoot.innerHTML = '<div class="empty-state">No active tasks — all completed or add a new one.</div>';
+        } else {
+            renderGroupedByMonth(activeRoot, openIndices, taskMonthKeyOpen, 'o:');
+        }
+
+        if (doneIndices.length === 0) {
+            doneBlock.style.display = 'none';
+            doneInner.innerHTML = '';
+        } else {
+            doneBlock.style.display = 'block';
+            const hidden = !!taskUICollapsed.doneHidden;
+            doneToggle.textContent = `${hidden ? '\u25b8' : '\u25be'} Completed (${doneIndices.length})`;
+            doneInner.innerHTML = '';
+            if (!hidden) {
+                renderGroupedByMonth(doneInner, doneIndices, taskMonthKeyDone, 'd:');
             }
+        }
 
-            const isEditing = editingTaskIndex === i;
-            li.innerHTML = `
-                <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${i})" ${isEditing ? 'disabled' : ''}>
-                ${isEditing
-                    ? '<input class="task-rename-input" type="text" autocomplete="off">'
-                    : `<span class="task-text" ondblclick="startRenameTask(${i})" title="Double-click to rename">${escapeHtml(task.text)}</span>`}
-                <div class="task-actions">
-                    ${pomoBtn}
-                    ${isEditing
-                        ? ''
-                        : `<button class="task-btn" onclick="startRenameTask(${i})" title="Rename">&#9998;</button>`}
-                    <button class="task-btn" onclick="deleteTask(${i})" title="Delete">&#10005;</button>
-                </div>
-            `;
-            if (isEditing) {
-                const inp = li.querySelector('.task-rename-input');
-                inp.value = task.text;
-                inp.addEventListener('keydown', e => renameTaskKeydown(e, i));
-                inp.addEventListener('blur', () => commitRenameTask(i, inp.value));
-                requestAnimationFrame(() => {
-                    inp.focus();
-                    inp.select();
-                });
-            }
-            list.appendChild(li);
-        });
-
-        const done = tasks.filter(t => t.done).length;
+        const done = doneIndices.length;
         countEl.textContent = `${done} of ${tasks.length} completed`;
     }
 
@@ -688,7 +876,14 @@
     }
 
     function toggleTask(i) {
+        const wasDone = tasks[i].done;
         tasks[i].done = !tasks[i].done;
+        if (tasks[i].done && !wasDone) {
+            if (!tasks[i].days) tasks[i].days = [];
+            if (tasks[i].days.length === 0) {
+                tasks[i].days.push(isoTodayLocal());
+            }
+        }
         if (tasks[i].done && pomoState.active && pomoState.taskIndex === i) stopPomo();
         save();
         render();
@@ -815,6 +1010,7 @@
     function switchTab(name) {
         document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
+        if (name === 'tasks') render();
         if (name === 'gantt') renderGantt();
         if (name === 'goals') renderGoals();
         if (name === 'notes') document.getElementById('notes-area').value = notes;
@@ -888,6 +1084,7 @@
         else arr.push(dateStr);
         save();
         renderGantt();
+        render();
     }
 
     function onNotesInput() {
