@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tasks</title>
+    <style>
+        @font-face {
+            font-family: 'Chicago';
+            src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            background: #c0c0c0;
+            color: #000;
+            min-height: 100vh;
+            cursor: default;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: none;
+        }
+
+        .desktop { padding: 12px; max-width: 800px; margin: 0 auto; }
+
+        .mac-window {
+            background: #fff;
+            border: 2px solid #000;
+            margin-bottom: 12px;
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        .title-bar {
+            height: 22px;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            position: relative;
+            user-select: none;
+        }
+
+        .title-bar-lines {
+            position: absolute;
+            left: 8px; right: 8px; top: 3px; bottom: 3px;
+            background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
+        }
+
+        .title-bar-text {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            padding: 0 8px;
+            margin: 0 auto;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .window-content { padding: 16px; }
+
+        .mac-btn {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            padding: 5px 16px;
+            border: 2px solid #000;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .mac-btn:hover { background: #ddd; }
+        .mac-btn:active { background: #000; color: #fff; }
+
+        .setup-screen {
+            padding: 28px 24px;
+            text-align: center;
+        }
+        .setup-title {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 16px;
+        }
+        .setup-text {
+            font-size: 12px;
+            line-height: 1.6;
+            color: #444;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+        .setup-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        .file-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 16px;
+            border-bottom: 1px solid #ccc;
+            flex-wrap: wrap;
+        }
+
+        .file-status {
+            font-size: 11px;
+            color: #666;
+            margin-left: auto;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 300px;
+        }
+
+        .add-row {
+            display: flex;
+            gap: 8px;
+            padding: 12px 16px;
+        }
+
+        .add-input {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            flex: 1;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 5px 8px;
+            outline: none;
+        }
+        .add-input:focus { border-color: #000; }
+        .add-input::placeholder { color: #999; }
+
+        .task-list { list-style: none; min-height: 60px; }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-bottom: 1px solid #eee;
+            transition: background 0.1s;
+        }
+        .task-item:hover { background: #f5f5f5; }
+
+        .task-item input[type="checkbox"] {
+            accent-color: #000;
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+
+        .task-text { flex: 1; font-size: 13px; word-break: break-word; }
+
+        .task-item.done .task-text {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .task-actions {
+            display: flex;
+            gap: 4px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .task-btn {
+            font-size: 13px;
+            cursor: pointer;
+            color: #999;
+            background: none;
+            border: none;
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            padding: 0 3px;
+            line-height: 1;
+        }
+        .task-btn:hover { color: #000; }
+
+        .task-item.pomo-active {
+            background: #f0f0f0;
+            border-left: 3px solid #000;
+            padding-left: 13px;
+        }
+
+        .pomo-timer {
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 42px;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        .task-count {
+            font-size: 11px;
+            color: #666;
+            padding: 8px 16px;
+            border-top: 1px solid #ccc;
+        }
+
+        .pomo-bar {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-bottom: 1px solid #ccc;
+            font-size: 12px;
+        }
+        .pomo-bar label { font-weight: bold; }
+        .pomo-bar input[type="number"] {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            width: 50px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 2px 5px;
+            outline: none;
+            text-align: center;
+        }
+        .pomo-bar input[type="number"]:focus { border-color: #000; }
+
+        .pomo-global-timer {
+            margin-left: auto;
+            font-weight: bold;
+            font-size: 14px;
+        }
+
+        ::selection { background: #000; color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="desktop">
+    <div class="mac-window">
+        <div class="title-bar">
+            <div class="title-bar-lines"></div>
+            <div class="title-bar-text">Tasks</div>
+        </div>
+
+        <div id="setup-screen" class="setup-screen">
+            <div class="setup-title">Link a tasks file to get started</div>
+            <div class="setup-text">
+                Tasks are saved to a <b>.json</b> file on your computer. Create a new file or open an existing one. Every change you make is automatically written back to the file. Next time you open Tasks, just click <b>Open File</b> to reconnect to the same file and pick up where you left off.
+            </div>
+            <div class="setup-buttons">
+                <button class="mac-btn" onclick="createFile()">&#10010; Create New File</button>
+                <button class="mac-btn" onclick="linkFile()">&#9741; Open Existing File</button>
+            </div>
+        </div>
+
+        <div id="app-screen" style="display:none">
+            <div class="file-bar">
+                <button class="mac-btn" onclick="linkFile()">&#9741; Open File</button>
+                <button class="mac-btn" onclick="createFile()">&#10010; New File</button>
+                <span class="file-status" id="file-status">No file linked</span>
+            </div>
+
+            <div class="pomo-bar">
+                <label>Pomodoro:</label>
+                <input type="number" id="pomo-duration" min="1" max="120" value="25" onchange="pomoDuration=parseInt(this.value)||25"> min
+                <span class="pomo-global-timer" id="pomo-global-timer"></span>
+            </div>
+
+            <div class="add-row">
+                <input class="add-input" id="add-input" type="text" placeholder="New task..." onkeydown="if(event.key==='Enter')addTask()">
+                <button class="mac-btn" onclick="addTask()">&#10010; Add</button>
+            </div>
+
+            <ul class="task-list" id="task-list"></ul>
+            <div class="task-count" id="task-count"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let tasks = [];
+    let fileHandle = null;
+    let pomoDuration = 25;
+    let pomoState = { active: false, paused: false, taskIndex: -1, remaining: 0, interval: null };
+    const DB_NAME = 'indietoolbox_tasks';
+    const STORE_NAME = 'handles';
+
+    function openDB() {
+        return new Promise((resolve, reject) => {
+            const req = indexedDB.open(DB_NAME, 1);
+            req.onupgradeneeded = () => req.result.createObjectStore(STORE_NAME);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    }
+
+    async function storeHandle(handle) {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(handle, 'taskfile');
+        return new Promise(r => { tx.oncomplete = r; });
+    }
+
+    async function getStoredHandle() {
+        const db = await openDB();
+        const tx = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).get('taskfile');
+        return new Promise((resolve) => {
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
+        });
+    }
+
+    function showApp() {
+        document.getElementById('setup-screen').style.display = 'none';
+        document.getElementById('app-screen').style.display = 'block';
+    }
+
+    function render() {
+        const list = document.getElementById('task-list');
+        const countEl = document.getElementById('task-count');
+
+        if (tasks.length === 0) {
+            list.innerHTML = '<div class="empty-state">No tasks yet. Add one above.</div>';
+            countEl.textContent = '';
+            return;
+        }
+
+        list.innerHTML = '';
+        tasks.forEach((task, i) => {
+            const li = document.createElement('li');
+            const isPomoTask = pomoState.active && pomoState.taskIndex === i;
+            li.className = 'task-item' + (task.done ? ' done' : '') + (isPomoTask ? ' pomo-active' : '');
+
+            let pomoBtn = '';
+            if (!task.done) {
+                if (isPomoTask) {
+                    const timeStr = formatPomo(pomoState.remaining);
+                    if (pomoState.paused) {
+                        pomoBtn = `<span class="pomo-timer">${timeStr}</span>
+                            <button class="task-btn" onclick="resumePomo()" title="Resume">&#9654;</button>
+                            <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
+                    } else {
+                        pomoBtn = `<span class="pomo-timer">${timeStr}</span>
+                            <button class="task-btn" onclick="pausePomo()" title="Pause">&#10074;&#10074;</button>
+                            <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
+                    }
+                } else {
+                    pomoBtn = `<button class="task-btn" onclick="startPomo(${i})" title="Start Pomodoro">&#9654;</button>`;
+                }
+            }
+
+            li.innerHTML = `
+                <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${i})">
+                <span class="task-text">${escapeHtml(task.text)}</span>
+                <div class="task-actions">
+                    ${pomoBtn}
+                    <button class="task-btn" onclick="deleteTask(${i})" title="Delete">&#10005;</button>
+                </div>
+            `;
+            list.appendChild(li);
+        });
+
+        const done = tasks.filter(t => t.done).length;
+        countEl.textContent = `${done} of ${tasks.length} completed`;
+    }
+
+    function escapeHtml(str) {
+        const d = document.createElement('div');
+        d.textContent = str;
+        return d.innerHTML;
+    }
+
+    function addTask() {
+        const input = document.getElementById('add-input');
+        const text = input.value.trim();
+        if (!text) return;
+        tasks.push({ text, done: false });
+        input.value = '';
+        input.focus();
+        save();
+        render();
+    }
+
+    function toggleTask(i) {
+        tasks[i].done = !tasks[i].done;
+        if (tasks[i].done && pomoState.active && pomoState.taskIndex === i) stopPomo();
+        save();
+        render();
+    }
+
+    function deleteTask(i) {
+        if (pomoState.active && pomoState.taskIndex === i) stopPomo();
+        else if (pomoState.active && pomoState.taskIndex > i) pomoState.taskIndex--;
+        tasks.splice(i, 1);
+        save();
+        render();
+    }
+
+    function formatPomo(sec) {
+        const m = Math.floor(sec / 60);
+        const s = sec % 60;
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    }
+
+    function startPomo(taskIndex) {
+        stopPomo();
+        pomoState.active = true;
+        pomoState.paused = false;
+        pomoState.taskIndex = taskIndex;
+        pomoState.remaining = pomoDuration * 60;
+        pomoState.interval = setInterval(pomoTick, 1000);
+        render();
+        updatePomoGlobal();
+    }
+
+    function pausePomo() {
+        pomoState.paused = true;
+        if (pomoState.interval) { clearInterval(pomoState.interval); pomoState.interval = null; }
+        render();
+    }
+
+    function resumePomo() {
+        pomoState.paused = false;
+        pomoState.interval = setInterval(pomoTick, 1000);
+        render();
+    }
+
+    function stopPomo() {
+        if (pomoState.interval) { clearInterval(pomoState.interval); pomoState.interval = null; }
+        pomoState.active = false;
+        pomoState.paused = false;
+        pomoState.taskIndex = -1;
+        pomoState.remaining = 0;
+        document.getElementById('pomo-global-timer')&&(document.getElementById('pomo-global-timer').textContent = '');
+        render();
+    }
+
+    function pomoTick() {
+        pomoState.remaining--;
+        updatePomoGlobal();
+        if (pomoState.remaining <= 0) {
+            const taskName = tasks[pomoState.taskIndex]?.text || 'Task';
+            stopPomo();
+            pomoAlert(taskName);
+        } else {
+            render();
+        }
+    }
+
+    function updatePomoGlobal() {
+        const el = document.getElementById('pomo-global-timer');
+        if (!el) return;
+        if (pomoState.active) {
+            el.textContent = formatPomo(pomoState.remaining) + (pomoState.paused ? ' (paused)' : '');
+        } else {
+            el.textContent = '';
+        }
+    }
+
+    function pomoAlert(taskName) {
+        try {
+            const actx = new (window.AudioContext || window.webkitAudioContext)();
+            [0, 200, 400].forEach(delay => {
+                const osc = actx.createOscillator();
+                const gain = actx.createGain();
+                osc.type = 'square';
+                osc.frequency.value = 880;
+                gain.gain.value = 0.15;
+                osc.connect(gain).connect(actx.destination);
+                osc.start(actx.currentTime + delay / 1000);
+                osc.stop(actx.currentTime + delay / 1000 + 0.12);
+            });
+        } catch (e) {}
+        alert(`Pomodoro complete!\n"${taskName}"`);
+    }
+
+    async function save() {
+        if (!fileHandle) return;
+        try {
+            const writable = await fileHandle.createWritable();
+            await writable.write(JSON.stringify(tasks, null, 2));
+            await writable.close();
+            updateStatus(fileHandle.name, true);
+        } catch (e) {
+            console.warn('File save failed:', e);
+            updateStatus(fileHandle.name, false);
+        }
+    }
+
+    async function linkFile() {
+        if (!window.showOpenFilePicker) {
+            alert('File System Access API is not supported. Use a Chromium-based browser and serve via localhost.');
+            return;
+        }
+        try {
+            const [handle] = await window.showOpenFilePicker({
+                types: [{ description: 'Tasks JSON', accept: { 'application/json': ['.json'] } }],
+                multiple: false
+            });
+            fileHandle = handle;
+            await storeHandle(handle);
+            const file = await handle.getFile();
+            const text = await file.text();
+            tasks = JSON.parse(text);
+            updateStatus(handle.name, true);
+            showApp();
+            render();
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error(e);
+        }
+    }
+
+    async function createFile() {
+        if (!window.showSaveFilePicker) {
+            alert('File System Access API is not supported. Use a Chromium-based browser and serve via localhost.');
+            return;
+        }
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: 'tasks.json',
+                types: [{ description: 'Tasks JSON', accept: { 'application/json': ['.json'] } }]
+            });
+            fileHandle = handle;
+            await storeHandle(handle);
+            tasks = [];
+            const writable = await handle.createWritable();
+            await writable.write(JSON.stringify(tasks, null, 2));
+            await writable.close();
+            updateStatus(handle.name, true);
+            showApp();
+            render();
+        } catch (e) {
+            if (e.name !== 'AbortError') console.error(e);
+        }
+    }
+
+    function updateStatus(name, synced) {
+        const el = document.getElementById('file-status');
+        el.textContent = synced ? `Linked: ${name}` : `${name} (sync error)`;
+        el.title = name;
+    }
+
+    async function tryAutoConnect() {
+        try {
+            const handle = await getStoredHandle();
+            if (!handle) return;
+            const perm = await handle.queryPermission({ mode: 'readwrite' });
+            if (perm === 'granted') {
+                fileHandle = handle;
+                const file = await handle.getFile();
+                const text = await file.text();
+                tasks = JSON.parse(text);
+                updateStatus(handle.name, true);
+                showApp();
+                render();
+                return;
+            }
+            if (perm === 'prompt') {
+                const granted = await handle.requestPermission({ mode: 'readwrite' });
+                if (granted === 'granted') {
+                    fileHandle = handle;
+                    const file = await handle.getFile();
+                    const text = await file.text();
+                    tasks = JSON.parse(text);
+                    updateStatus(handle.name, true);
+                    showApp();
+                    render();
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('Auto-connect failed:', e);
+        }
+    }
+
+    tryAutoConnect();
+</script>
+</body>
+</html>

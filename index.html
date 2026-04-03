@@ -315,6 +315,20 @@
                 </svg>
                 <div class="icon-label">Image Editor</div>
             </div>
+
+            <div class="desktop-icon" onclick="openApp('tasks')">
+                <svg class="icon-img" viewBox="0 0 48 48" fill="none">
+                    <rect x="6" y="4" width="36" height="40" rx="3" fill="#fff" stroke="#000" stroke-width="2"/>
+                    <line x1="14" y1="14" x2="36" y2="14" stroke="#000" stroke-width="1.5"/>
+                    <line x1="14" y1="22" x2="36" y2="22" stroke="#000" stroke-width="1.5"/>
+                    <line x1="14" y1="30" x2="30" y2="30" stroke="#000" stroke-width="1.5"/>
+                    <rect x="9" y="11" width="3" height="3" fill="#000"/>
+                    <rect x="9" y="19" width="3" height="3" fill="#000"/>
+                    <rect x="9" y="27" width="3" height="3" fill="#000"/>
+                    <polyline points="9.5,35 11,37 14,33" fill="none" stroke="#000" stroke-width="1.5"/>
+                </svg>
+                <div class="icon-label">Tasks</div>
+            </div>
         </div>
     </div>
 
@@ -328,6 +342,7 @@
         const appConfig = {
             audio: { title: 'Audio Mixer', src: 'AudioEditor.html', w: 1050, h: 650 },
             image: { title: 'Image Editor', src: 'ImageConverter.html', w: 950, h: 700 },
+            tasks: { title: 'Tasks', src: 'Tasks.html', w: 600, h: 550 },
             about: { title: 'About', src: 'About.html', w: 440, h: 380, noResize: true, noMaximize: true, centered: true }
         };
 
