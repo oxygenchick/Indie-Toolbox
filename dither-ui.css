@@ -1,7 +1,46 @@
 /* Shared Mac-style tight gray dither — used for hovers instead of flat #ddd */
+button {
+    border-radius: 0;
+}
+
 :root {
     --dither-dot: radial-gradient(circle, rgba(0, 0, 0, 0.1) 0.42px, transparent 0.48px);
     --dither-dot-hover: radial-gradient(circle, rgba(0, 0, 0, 0.13) 0.42px, transparent 0.48px);
     --dither-dot-strong: radial-gradient(circle, rgba(0, 0, 0, 0.14) 0.42px, transparent 0.48px);
     --dither-step: 2px;
+    /* Chunky offset shadow like System 7 push buttons / windows */
+    --mac-push-shadow: 2px 2px 0 #000;
+}
+
+/* Square checkboxes (native controls are rounded in many browsers) */
+input[type="checkbox"] {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin: 0;
+    border: 2px solid #000;
+    border-radius: 0;
+    background: #fff;
+    cursor: pointer;
+    flex-shrink: 0;
+    vertical-align: middle;
+    box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.35);
+}
+input[type="checkbox"]:checked {
+    background-color: #000;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6 L5 8.5 L9.5 3' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='square' stroke-linejoin='miter'/%3E%3C/svg%3E");
+    background-size: 12px 12px;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+input[type="checkbox"]:focus-visible {
+    outline: 2px solid #000;
+    outline-offset: 2px;
+}
+input[type="checkbox"]:disabled {
+    opacity: 0.45;
+    cursor: default;
+    box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
 }

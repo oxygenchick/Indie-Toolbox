@@ -88,18 +88,34 @@
             font-size: 13px;
             padding: 5px 16px;
             border: 2px solid #000;
-            border-radius: 6px;
+            border-radius: 0;
             background: #fff;
             cursor: pointer;
             font-weight: bold;
             white-space: nowrap;
+            box-shadow: var(--mac-push-shadow);
         }
         .mac-btn:hover {
             background-color: #fff;
             background-image: var(--dither-dot-hover);
             background-size: var(--dither-step) var(--dither-step);
         }
-        .mac-btn:active { background: #000; color: #fff; }
+        .mac-btn:active:not(:disabled) {
+            background: #000;
+            color: #fff;
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
+        .mac-btn:disabled {
+            color: #999;
+            border-color: #999;
+            cursor: default;
+            background: #fff;
+            box-shadow: 1px 1px 0 #bbb;
+        }
+        .mac-btn:disabled:hover {
+            background-image: none;
+        }
 
         .setup-screen {
             padding: 28px 24px;
@@ -188,13 +204,6 @@
             background-size: var(--dither-step) var(--dither-step);
         }
 
-        .task-item input[type="checkbox"] {
-            accent-color: #000;
-            width: 14px;
-            height: 14px;
-            flex-shrink: 0;
-            cursor: pointer;
-        }
 
         .task-text { flex: 1; font-size: 13px; word-break: break-word; }
 
@@ -218,23 +227,55 @@
 
         .task-actions {
             display: flex;
-            gap: 4px;
+            gap: 6px;
             align-items: center;
             flex-shrink: 0;
         }
 
+        /* Icon-only buttons: same family as .journal-mac-btn (Edit / Archive), smaller square hit area */
         .task-btn {
-            font-size: 13px;
-            cursor: pointer;
+            box-sizing: border-box;
+            width: 20px;
+            height: 20px;
+            padding: 0;
+            margin: 0;
+            border: 2px solid #000;
+            border-radius: 0;
+            background: #fff;
             color: #000;
-            opacity: 0.4;
-            background: none;
-            border: none;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            line-height: 0;
+            box-shadow: var(--mac-push-shadow);
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
-            padding: 0 3px;
-            line-height: 1;
+            font-size: 11px;
+            font-weight: bold;
+            font-variant-emoji: text;
         }
-        .task-btn:hover { opacity: 1; }
+        .task-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .task-btn:active {
+            background: #000;
+            color: #fff;
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
+        .task-btn-svg {
+            width: 8px;
+            height: 8px;
+            display: block;
+            pointer-events: none;
+        }
+        .task-btn-svg--stroke {
+            width: 9px;
+            height: 9px;
+        }
 
         .task-item.pomo-active {
             background: #fff;
@@ -428,9 +469,10 @@
             display: flex;
             align-items: stretch;
             border: 2px solid #000;
-            border-radius: 6px;
+            border-radius: 0;
             overflow: hidden;
             background: #fff;
+            box-shadow: var(--mac-push-shadow);
         }
         .period-nav-btn {
             width: 28px;
@@ -457,6 +499,7 @@
         .period-nav-btn:active {
             background: #000;
             color: #fff;
+            box-shadow: none;
         }
         .period-nav-btn--next {
             border-right: none;
@@ -745,16 +788,22 @@
             font-weight: bold;
             padding: 2px 10px;
             border: 2px solid #000;
-            border-radius: 5px;
+            border-radius: 0;
             background: #fff;
             cursor: pointer;
+            box-shadow: var(--mac-push-shadow);
         }
         .journal-mac-btn:hover {
             background-color: #fff;
             background-image: var(--dither-dot-hover);
             background-size: var(--dither-step) var(--dither-step);
         }
-        .journal-mac-btn:active { background: #000; color: #fff; }
+        .journal-mac-btn:active {
+            background: #000;
+            color: #fff;
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
         .journal-bubble {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-size: 13px;
@@ -949,6 +998,13 @@
     let fileHandle = null;
     let pomoDuration = 25;
     let pomoState = { active: false, paused: false, taskIndex: -1, remaining: 0, interval: null };
+    const TASK_BTN_SVG = {
+        play: '<svg class="task-btn-svg" viewBox="0 0 10 10" aria-hidden="true"><path fill="currentColor" d="M1 0 L1 10 L9 5 Z"/></svg>',
+        pause: '<svg class="task-btn-svg" viewBox="0 0 10 10" aria-hidden="true"><rect x="2" y="1" width="2" height="8" fill="currentColor"/><rect x="6" y="1" width="2" height="8" fill="currentColor"/></svg>',
+        stop: '<svg class="task-btn-svg" viewBox="0 0 10 10" aria-hidden="true"><rect x="1" y="1" width="8" height="8" fill="currentColor"/></svg>',
+        edit: '<svg class="task-btn-svg" viewBox="0 0 10 10" aria-hidden="true"><path fill="currentColor" d="M5 0 L10 5 L4 11 H1 V8 Z"/></svg>',
+        del: '<svg class="task-btn-svg task-btn-svg--stroke" viewBox="0 0 10 10" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square" d="M2 2 L8 8 M8 2 L2 8"/></svg>'
+    };
     let ganttDate = new Date();
     ganttDate.setDate(1);
     let journalViewDate = new Date();
@@ -1135,15 +1191,15 @@
                 const timeStr = formatPomo(pomoState.remaining);
                 if (pomoState.paused) {
                     pomoBtn = `<span class="pomo-timer">${timeStr}</span>
-                        <button class="task-btn" onclick="resumePomo()" title="Resume">&#9654;</button>
-                        <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
+                        <button type="button" class="task-btn" onclick="resumePomo()" title="Resume">${TASK_BTN_SVG.play}</button>
+                        <button type="button" class="task-btn" onclick="stopPomo()" title="Stop">${TASK_BTN_SVG.stop}</button>`;
                 } else {
                     pomoBtn = `<span class="pomo-timer">${timeStr}</span>
-                        <button class="task-btn" onclick="pausePomo()" title="Pause">&#10074;&#10074;</button>
-                        <button class="task-btn" onclick="stopPomo()" title="Stop">&#9632;</button>`;
+                        <button type="button" class="task-btn" onclick="pausePomo()" title="Pause">${TASK_BTN_SVG.pause}</button>
+                        <button type="button" class="task-btn" onclick="stopPomo()" title="Stop">${TASK_BTN_SVG.stop}</button>`;
                 }
             } else {
-                pomoBtn = `<button class="task-btn" onclick="startPomo(${i})" title="Start Pomodoro">&#9654;</button>`;
+                pomoBtn = `<button type="button" class="task-btn" onclick="startPomo(${i})" title="Start Pomodoro">${TASK_BTN_SVG.play}</button>`;
             }
         }
 
@@ -1157,8 +1213,8 @@
                 ${pomoBtn}
                 ${isEditing
                     ? ''
-                    : `<button class="task-btn" onclick="startRenameTask(${i})" title="Rename">&#9998;</button>`}
-                <button class="task-btn" onclick="deleteTask(${i})" title="Delete">&#10005;</button>
+                    : `<button type="button" class="task-btn" onclick="startRenameTask(${i})" title="Rename">${TASK_BTN_SVG.edit}</button>`}
+                <button type="button" class="task-btn" onclick="deleteTask(${i})" title="Delete">${TASK_BTN_SVG.del}</button>
             </div>
         `;
         if (isEditing) {
@@ -1578,7 +1634,7 @@
                     <span class="goal-sep">&#8594;</span>
                     <input type="date" value="${g.to}" onchange="updateGoal(${i},'to',this.value);renderGoals()">
                     <span class="goal-range-label">${rangeLabel}</span>
-                    <button class="task-btn" onclick="deleteGoal(${i})" title="Delete" style="margin-left:auto">&#10005;</button>
+                    <button type="button" class="task-btn" onclick="deleteGoal(${i})" title="Delete" style="margin-left:auto">${TASK_BTN_SVG.del}</button>
                 </div>
                 <textarea class="goal-desc" placeholder="Key objectives for this period..." oninput="updateGoal(${i},'text',this.value);autoGrow(this)">${escapeHtml(g.text)}</textarea>
             `;
@@ -1734,7 +1790,7 @@
                     <span class="journal-date">${escapeHtml(formatJournalDate(entry.created))}</span>
                     <div class="journal-actions">
                         ${actionsEdit}
-                        <button type="button" class="task-btn" onclick="deleteJournalEntry(${i})" title="Delete entry">&#10005;</button>
+                        <button type="button" class="task-btn" onclick="deleteJournalEntry(${i})" title="Delete entry">${TASK_BTN_SVG.del}</button>
                     </div>
                 </div>
                 ${isEdit
@@ -1894,7 +1950,7 @@
                     <div class="journal-actions">
                         ${actionsEdit}
                         <button type="button" class="journal-mac-btn" onclick="archiveNoteItem(${i})" title="Move to archive">Archive</button>
-                        <button type="button" class="task-btn" onclick="deleteNoteItem(${i})" title="Delete note">&#10005;</button>
+                        <button type="button" class="task-btn" onclick="deleteNoteItem(${i})" title="Delete note">${TASK_BTN_SVG.del}</button>
                     </div>
                 </div>
                 ${isEdit
