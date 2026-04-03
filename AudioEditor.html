@@ -416,7 +416,7 @@
 
         <div id="tracks-container"></div>
 
-        <div class="mac-window timeline-window" id="mix-timeline" style="display:none;">
+        <div class="mac-window timeline-window" id="mix-timeline">
             <div class="title-bar">
                 <div class="title-bar-lines" style="left:8px"></div>
                 <div class="title-bar-text">Mix Timeline</div>
@@ -704,10 +704,13 @@
                 const cr = canvas.getBoundingClientRect();
                 const dx = e.clientX - cr.left - tlDragState.startMx;
                 const pxPerSec = cr.width / tlDragState.scale;
-                const newOffset = Math.max(0, tlDragState.origOffset + dx / pxPerSec);
+                let newOffset = Math.max(0, tlDragState.origOffset + dx / pxPerSec);
 
                 const track = tracks.find(t => t.id === tlDragState.trackId);
                 if (track) {
+                    const trackDur = track.trimEnd - track.trimStart;
+                    newOffset = Math.min(newOffset, tlDragState.scale - trackDur);
+                    newOffset = Math.max(0, newOffset);
                     track.offset = newOffset;
                     syncTrackInputs(tlDragState.trackId, track);
                     renderGlobalTimeline();
@@ -1139,7 +1142,7 @@
             const maxDur = getMixDuration();
 
             document.getElementById('mix-total').textContent = formatTime(maxDur);
-            document.getElementById('mix-timeline').style.display = 'block';
+
 
             tracks.forEach(track => {
                 if (track.muted || track.trimEnd <= track.trimStart) return;
