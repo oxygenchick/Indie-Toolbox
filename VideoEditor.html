@@ -297,6 +297,7 @@
             margin-left: -1px;
             z-index: 4;
             pointer-events: none;
+            will-change: left;
             background: repeating-linear-gradient(
                 to bottom,
                 #000 0px,
@@ -519,6 +520,11 @@
     let lockRatio = true;
     let trimStart = 0, trimEnd = 0;
     let seeking = false;
+    /** True after auto-pause at trim end — playhead snaps to trimEnd; Play jumps to trimStart. */
+    let stoppedAtTrimEnd = false;
+    let playheadRaf = null;
+    /** Seconds: treat as "at end of crop" for replay (keyframes / float). */
+    const TRIM_END_EPS = 0.12;
     let ffmpeg = null;
     const MIN_TRIM_SEC = 1 / 25;
     let timelineDrag = null;
@@ -622,6 +628,8 @@
         originalH = video.videoHeight;
         trimStart = 0;
         trimEnd = video.duration;
+        stoppedAtTrimEnd = false;
+        stopPlayheadRaf();
 
         document.getElementById('resize-w').value = originalW;
         document.getElementById('resize-h').value = originalH;
@@ -674,6 +682,19 @@
         return Math.max(0, Math.min(d, t));
     }
 
+    function getPlayheadTimelineSeconds() {
+        if (stoppedAtTrimEnd) return trimEnd;
+        return video.currentTime;
+    }
+
+    function setPlayheadPercentFromTime() {
+        const d = getDuration();
+        if (!d) return;
+        let t = getPlayheadTimelineSeconds();
+        if (!video.paused && !seeking) t = Math.min(t, trimEnd);
+        playhead.style.left = (t / d) * 100 + '%';
+    }
+
     function layoutTimeline() {
         const d = getDuration();
         if (!d) {
@@ -689,13 +710,43 @@
         shadeRight.style.width = (100 - pE) + '%';
         trimRangeEl.style.left = pS + '%';
         trimRangeEl.style.width = Math.max(0.05, pE - pS) + '%';
-        playhead.style.left = (video.currentTime / d) * 100 + '%';
+        setPlayheadPercentFromTime();
     }
 
     function updatePlayheadOnly() {
-        const d = getDuration();
-        if (!d) return;
-        playhead.style.left = (video.currentTime / d) * 100 + '%';
+        setPlayheadPercentFromTime();
+    }
+
+    function stopPlayheadRaf() {
+        if (playheadRaf != null) {
+            cancelAnimationFrame(playheadRaf);
+            playheadRaf = null;
+        }
+    }
+
+    function tickPlayheadWhilePlaying() {
+        if (video.paused || seeking) {
+            playheadRaf = null;
+            return;
+        }
+        if (video.currentTime >= trimEnd) {
+            video.pause();
+            video.currentTime = trimEnd;
+            stoppedAtTrimEnd = true;
+            document.getElementById('btn-play').innerHTML = '&#9654; Play';
+            setPlayheadPercentFromTime();
+            document.getElementById('time-current').textContent = formatTime(trimEnd);
+            playheadRaf = null;
+            return;
+        }
+        setPlayheadPercentFromTime();
+        document.getElementById('time-current').textContent = formatTime(Math.min(video.currentTime, trimEnd));
+        playheadRaf = requestAnimationFrame(tickPlayheadWhilePlaying);
+    }
+
+    function startPlayheadRaf() {
+        stopPlayheadRaf();
+        if (!video.paused && !seeking) playheadRaf = requestAnimationFrame(tickPlayheadWhilePlaying);
     }
 
     function endTimelineDrag(e) {
@@ -707,11 +758,15 @@
         timelineDrag = null;
         trimMoveState = null;
         seeking = false;
+        updatePlayheadOnly();
+        document.getElementById('time-current').textContent = formatTime(getPlayheadTimelineSeconds());
     }
 
     function beginScrubDrag(t) {
         timelineDrag = 'seek';
         seeking = true;
+        stoppedAtTrimEnd = false;
+        stopPlayheadRaf();
         video.pause();
         document.getElementById('btn-play').innerHTML = '&#9654; Play';
         video.currentTime = t;
@@ -735,12 +790,15 @@
 
         if (distStartPx <= handleTol && t <= trimEnd + 1e-6) {
             timelineDrag = 'trim-start';
+            stoppedAtTrimEnd = false;
         } else if (distEndPx <= handleTol && t >= trimStart - 1e-6) {
             timelineDrag = 'trim-end';
+            stoppedAtTrimEnd = false;
         } else if (distPlayPx <= playheadGrabTol) {
             beginScrubDrag(t);
         } else if (t > trimStart && t < trimEnd && distStartPx > handleTol && distEndPx > handleTol) {
             timelineDrag = 'trim-move';
+            stoppedAtTrimEnd = false;
             trimMoveState = { trimStart0: trimStart, trimEnd0: trimEnd, x0: e.clientX };
             timelineTrack.classList.add('is-dragging');
         } else {
@@ -758,22 +816,26 @@
         const t = timeFromClientX(e.clientX);
 
         if (timelineDrag === 'seek') {
+            stoppedAtTrimEnd = false;
             video.currentTime = t;
             document.getElementById('time-current').textContent = formatTime(t);
             layoutTimeline();
             return;
         }
         if (timelineDrag === 'trim-start') {
+            stoppedAtTrimEnd = false;
             trimStart = Math.max(0, Math.min(t, trimEnd - MIN_TRIM_SEC));
             syncTrimUI();
             return;
         }
         if (timelineDrag === 'trim-end') {
+            stoppedAtTrimEnd = false;
             trimEnd = Math.min(d, Math.max(t, trimStart + MIN_TRIM_SEC));
             syncTrimUI();
             return;
         }
         if (timelineDrag === 'trim-move' && trimMoveState) {
+            stoppedAtTrimEnd = false;
             const r = timelineTrack.getBoundingClientRect();
             const pxPerSec = r.width / d;
             const deltaT = (e.clientX - trimMoveState.x0) / pxPerSec;
@@ -801,19 +863,26 @@
         trimMoveState = null;
         timelineTrack.classList.remove('is-dragging');
         seeking = false;
+        updatePlayheadOnly();
+        document.getElementById('time-current').textContent = formatTime(getPlayheadTimelineSeconds());
     });
 
     video.addEventListener('timeupdate', () => {
         if (seeking) return;
+        if (!video.paused) return;
         updatePlayheadOnly();
-        document.getElementById('time-current').textContent = formatTime(video.currentTime);
+        document.getElementById('time-current').textContent = formatTime(getPlayheadTimelineSeconds());
+    });
 
-        if (video.currentTime >= trimEnd) {
-            video.pause();
-            video.currentTime = trimEnd;
-            document.getElementById('btn-play').innerHTML = '&#9654; Play';
-            updatePlayheadOnly();
-        }
+    video.addEventListener('play', () => {
+        startPlayheadRaf();
+    });
+
+    video.addEventListener('pause', () => {
+        stopPlayheadRaf();
+        if (video.currentTime > trimEnd) video.currentTime = trimEnd;
+        updatePlayheadOnly();
+        document.getElementById('time-current').textContent = formatTime(getPlayheadTimelineSeconds());
     });
 
     video.addEventListener('loadedmetadata', () => {
@@ -827,7 +896,8 @@
         const btn = document.getElementById('btn-play');
         if (video.paused) {
             if (video.currentTime < trimStart) video.currentTime = trimStart;
-            if (video.currentTime >= trimEnd) video.currentTime = trimStart;
+            if (stoppedAtTrimEnd || video.currentTime >= trimEnd - TRIM_END_EPS) video.currentTime = trimStart;
+            stoppedAtTrimEnd = false;
             video.play();
             btn.innerHTML = '&#10074;&#10074; Pause';
         } else {
@@ -839,6 +909,7 @@
     function onTrimInput() {
         const d = getDuration() || 0;
         if (!d) return;
+        stoppedAtTrimEnd = false;
         trimStart = Math.max(0, parseFloat(document.getElementById('trim-start').value) || 0);
         trimEnd = Math.min(d, parseFloat(document.getElementById('trim-end').value) || d);
         if (trimEnd < trimStart + MIN_TRIM_SEC) trimEnd = Math.min(d, trimStart + MIN_TRIM_SEC);
@@ -886,6 +957,8 @@
     function resetSession() {
         trimStart = 0;
         trimEnd = video.duration;
+        stoppedAtTrimEnd = false;
+        stopPlayheadRaf();
         syncTrimUI();
         resetSize();
         document.getElementById('chk-audio').checked = true;
@@ -894,6 +967,8 @@
     }
 
     function closeEditor() {
+        stopPlayheadRaf();
+        stoppedAtTrimEnd = false;
         if (ffmpeg) {
             try { ffmpeg.terminate(); } catch (_) {}
             ffmpeg = null;
