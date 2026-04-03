@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Time</title>
+    <title>Journey Book</title>
     <style>
         @font-face {
             font-family: 'Chicago';
@@ -542,33 +542,68 @@
         }
         .journal-item {
             padding: 12px 16px;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #ccc;
         }
         .journal-header {
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-bottom: 6px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
         }
         .journal-date {
             font-size: 12px;
             font-weight: bold;
             color: #333;
         }
-        .journal-header .task-btn { margin-left: auto; }
+        .journal-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-left: auto;
+        }
+        .journal-mac-btn {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 11px;
+            font-weight: bold;
+            padding: 2px 10px;
+            border: 2px solid #000;
+            border-radius: 5px;
+            background: #fff;
+            cursor: pointer;
+        }
+        .journal-mac-btn:hover { background: #ddd; }
+        .journal-mac-btn:active { background: #000; color: #fff; }
+        .journal-bubble {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            line-height: 1.45;
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: #fff;
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0 #000;
+            padding: 8px 10px;
+            min-height: 2.6em;
+            max-width: 100%;
+        }
+        .journal-bubble-empty {
+            color: #888;
+            font-style: italic;
+        }
         .journal-text {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-size: 13px;
             width: 100%;
-            min-height: 72px;
+            min-height: 88px;
             border: 2px inset #888;
             background: #fff;
-            padding: 5px 8px;
+            padding: 6px 8px;
             outline: none;
-            resize: none;
-            overflow: hidden;
+            resize: vertical;
+            overflow: auto;
             line-height: 1.4;
-            field-sizing: content;
+            box-sizing: border-box;
         }
         .journal-text:focus { border-color: #000; }
         .journal-text::placeholder { color: #999; }
@@ -582,6 +617,7 @@
     <div class="mac-window">
         <div class="title-bar">
             <div class="title-bar-lines"></div>
+            <div class="title-bar-text">Journey Book</div>
         </div>
 
         <div id="setup-screen" class="setup-screen">
@@ -593,7 +629,7 @@
             </div>
             <div class="setup-title">Link a file</div>
             <div class="setup-text">
-                Data is saved to a <b>.json</b> file on your computer. Create a new file or open an existing one.
+                Your companion on the long voyage of making a game: tasks, Gantt, goals, journal, and notes in one <b>.json</b> file. Create new or open an existing file (including <code>tasks.json</code> / <code>logbook.json</code>).
             </div>
             <div class="setup-buttons">
                 <button class="mac-btn" onclick="createFile()">&#10010; Create New File</button>
@@ -658,7 +694,7 @@
             <div id="panel-journal" class="tab-panel">
                 <div class="journal-add-row">
                     <button class="mac-btn" onclick="addJournalEntry()">&#10010; New entry</button>
-                    <span style="font-size:11px;color:#888;margin-left:4px">Each entry is stamped with the creation date</span>
+                    <span style="font-size:11px;color:#888;margin-left:4px">Your journey is yours alone — unique, unrepeatable. Write it down here.</span>
                 </div>
                 <div class="journal-panel" id="journal-list"></div>
             </div>
@@ -706,6 +742,7 @@
     ganttDate.setDate(1);
     let notesSaveTimer = null;
     let journalSaveTimer = null;
+    let journalEditingIndex = null;
     const DB_NAME = 'indietoolbox_tasks';
     const STORE_NAME = 'handles';
     const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
@@ -1064,6 +1101,7 @@
     }
 
     function switchTab(name) {
+        journalFinishCurrentEdit();
         document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
         document.querySelectorAll('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + name));
         if (name === 'tasks') render();
@@ -1228,14 +1266,48 @@
         return d.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
     }
 
+    function journalSyncEditorToData() {
+        if (journalEditingIndex === null) return;
+        const i = journalEditingIndex;
+        const ta = document.querySelector(`textarea.journal-text[data-ji="${i}"]`);
+        if (ta && journal[i]) journal[i].text = ta.value;
+        if (journalSaveTimer) clearTimeout(journalSaveTimer);
+        save();
+    }
+
+    function journalFinishCurrentEdit() {
+        if (journalEditingIndex === null) return;
+        journalSyncEditorToData();
+        journalEditingIndex = null;
+        renderJournal();
+    }
+
+    function journalAreaBlur(i) {
+        setTimeout(() => {
+            if (journalEditingIndex !== i) return;
+            const ae = document.activeElement;
+            if (ae && ae.matches && ae.matches('textarea.journal-text[data-ji="' + i + '"]')) return;
+            journalFinishCurrentEdit();
+        }, 0);
+    }
+
     function addJournalEntry() {
         journal.unshift({ created: new Date().toISOString(), text: '' });
+        if (journalEditingIndex !== null) journalEditingIndex++;
         save();
         renderJournal();
     }
 
     function deleteJournalEntry(i) {
+        if (journalEditingIndex !== null) {
+            const ei = journalEditingIndex;
+            const ta = document.querySelector(`textarea.journal-text[data-ji="${ei}"]`);
+            if (ta && journal[ei]) journal[ei].text = ta.value;
+            if (ei === i) journalEditingIndex = null;
+            else if (ei > i) journalEditingIndex = ei - 1;
+        }
         journal.splice(i, 1);
+        if (journalSaveTimer) clearTimeout(journalSaveTimer);
         save();
         renderJournal();
     }
@@ -1247,10 +1319,27 @@
         journalSaveTimer = setTimeout(() => save(), 500);
     }
 
+    function editJournalEntry(i) {
+        if (!journal[i]) return;
+        if (journalEditingIndex !== null && journalEditingIndex !== i) journalSyncEditorToData();
+        journalEditingIndex = i;
+        renderJournal();
+        requestAnimationFrame(() => {
+            const t = document.querySelector(`textarea.journal-text[data-ji="${i}"]`);
+            if (t) {
+                t.focus();
+                const len = t.value.length;
+                t.setSelectionRange(len, len);
+                autoGrow(t);
+            }
+        });
+    }
+
     function renderJournal() {
         const container = document.getElementById('journal-list');
         if (!container) return;
         if (journal.length === 0) {
+            journalEditingIndex = null;
             container.innerHTML = '<div class="empty-state">No journal entries yet. Create one above.</div>';
             return;
         }
@@ -1258,12 +1347,26 @@
         journal.forEach((entry, i) => {
             const div = document.createElement('div');
             div.className = 'journal-item';
+            const isEdit = journalEditingIndex === i;
+            const trimmed = (entry.text || '').trim();
+            const bubbleInner = trimmed
+                ? escapeHtml(entry.text)
+                : '<span class="journal-bubble-empty">(No text yet — click Edit)</span>';
+            const actionsEdit = isEdit
+                ? `<button type="button" class="journal-mac-btn" onmousedown="event.preventDefault();journalFinishCurrentEdit()">Done</button>`
+                : `<button type="button" class="journal-mac-btn" onclick="editJournalEntry(${i})">Edit</button>`;
             div.innerHTML = `
                 <div class="journal-header">
                     <span class="journal-date">${escapeHtml(formatJournalDate(entry.created))}</span>
-                    <button class="task-btn" onclick="deleteJournalEntry(${i})" title="Delete entry">&#10005;</button>
+                    <div class="journal-actions">
+                        ${actionsEdit}
+                        <button type="button" class="task-btn" onclick="deleteJournalEntry(${i})" title="Delete entry">&#10005;</button>
+                    </div>
                 </div>
-                <textarea class="journal-text" placeholder="Write here..." oninput="updateJournalEntry(${i},this.value);autoGrow(this)">${escapeHtml(entry.text)}</textarea>
+                ${isEdit
+                    ? `<textarea class="journal-text" data-ji="${i}" placeholder="Write here..." oninput="updateJournalEntry(${i},this.value);autoGrow(this)" onblur="journalAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
+                    : `<div class="journal-bubble">${bubbleInner}</div>`
+                }
             `;
             container.appendChild(div);
         });
@@ -1295,6 +1398,7 @@
                 return tb - ta;
             });
         }
+        journalEditingIndex = null;
     }
 
     function getSaveData() {
@@ -1321,7 +1425,7 @@
         }
         try {
             const [handle] = await window.showOpenFilePicker({
-                types: [{ description: 'Tasks JSON', accept: { 'application/json': ['.json'] } }],
+                types: [{ description: 'Journey Book JSON', accept: { 'application/json': ['.json'] } }],
                 multiple: false
             });
             fileHandle = handle;
@@ -1344,8 +1448,8 @@
         }
         try {
             const handle = await window.showSaveFilePicker({
-                suggestedName: 'tasks.json',
-                types: [{ description: 'Tasks JSON', accept: { 'application/json': ['.json'] } }]
+                suggestedName: 'journey-book.json',
+                types: [{ description: 'Journey Book JSON', accept: { 'application/json': ['.json'] } }]
             });
             fileHandle = handle;
             await storeHandle(handle);
@@ -1353,6 +1457,7 @@
             notes = '';
             goals = [];
             journal = [];
+            journalEditingIndex = null;
             const writable = await handle.createWritable();
             await writable.write(JSON.stringify(getSaveData(), null, 2));
             await writable.close();

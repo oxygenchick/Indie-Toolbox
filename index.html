@@ -110,6 +110,22 @@
             align-items: center;
         }
 
+        .desktop-icons-journey {
+            position: absolute;
+            bottom: 28px;
+            left: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+            align-items: center;
+        }
+
+        .desktop-icon-companion .icon-label {
+            white-space: normal;
+            max-width: 88px;
+            line-height: 1.1;
+        }
+
         .desktop-icon {
             display: flex;
             flex-direction: column;
@@ -316,20 +332,6 @@
                 <div class="icon-label">Image Editor</div>
             </div>
 
-            <div class="desktop-icon" onclick="openApp('tasks')">
-                <svg class="icon-img" viewBox="0 0 48 48" fill="none">
-                    <rect x="6" y="4" width="36" height="40" rx="3" fill="#fff" stroke="#000" stroke-width="2"/>
-                    <line x1="14" y1="14" x2="36" y2="14" stroke="#000" stroke-width="1.5"/>
-                    <line x1="14" y1="22" x2="36" y2="22" stroke="#000" stroke-width="1.5"/>
-                    <line x1="14" y1="30" x2="30" y2="30" stroke="#000" stroke-width="1.5"/>
-                    <rect x="9" y="11" width="3" height="3" fill="#000"/>
-                    <rect x="9" y="19" width="3" height="3" fill="#000"/>
-                    <rect x="9" y="27" width="3" height="3" fill="#000"/>
-                    <polyline points="9.5,35 11,37 14,33" fill="none" stroke="#000" stroke-width="1.5"/>
-                </svg>
-                <div class="icon-label">Time</div>
-            </div>
-
             <div class="desktop-icon" onclick="openApp('video')">
                 <svg class="icon-img" viewBox="0 0 48 48" fill="none">
                     <rect x="4" y="8" width="40" height="32" rx="3" fill="#fff" stroke="#000" stroke-width="2"/>
@@ -341,6 +343,34 @@
                     <rect x="38" y="34" width="6" height="6" fill="#fff" stroke="#000" stroke-width="1"/>
                 </svg>
                 <div class="icon-label">Video Editor</div>
+            </div>
+        </div>
+
+        <div class="desktop-icons-journey">
+            <div class="desktop-icon desktop-icon-companion" onclick="openApp('tasks')">
+                <svg class="icon-img" viewBox="0 0 48 48" fill="none">
+                    <!-- Ship’s wheel: rim + inner ring + hub + 8 spokes + short pegs (no end knobs) -->
+                    <circle cx="24" cy="24" r="14" fill="#fff" stroke="#000" stroke-width="2"/>
+                    <circle cx="24" cy="24" r="10.5" fill="none" stroke="#000" stroke-width="1.5"/>
+                    <circle cx="24" cy="24" r="3.8" fill="#fff" stroke="#000" stroke-width="2"/>
+                    <line x1="24" y1="20.2" x2="24" y2="12.5" stroke="#000" stroke-width="2"/>
+                    <line x1="24" y1="27.8" x2="24" y2="35.5" stroke="#000" stroke-width="2"/>
+                    <line x1="20.2" y1="24" x2="12.5" y2="24" stroke="#000" stroke-width="2"/>
+                    <line x1="27.8" y1="24" x2="35.5" y2="24" stroke="#000" stroke-width="2"/>
+                    <line x1="21.5" y1="21.5" x2="16.2" y2="16.2" stroke="#000" stroke-width="2"/>
+                    <line x1="26.5" y1="21.5" x2="31.8" y2="16.2" stroke="#000" stroke-width="2"/>
+                    <line x1="21.5" y1="26.5" x2="16.2" y2="31.8" stroke="#000" stroke-width="2"/>
+                    <line x1="26.5" y1="26.5" x2="31.8" y2="31.8" stroke="#000" stroke-width="2"/>
+                    <line x1="24" y1="10" x2="24" y2="6" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="34.2" y1="13.8" x2="37.1" y2="11" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="38" y1="24" x2="42" y2="24" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="34.2" y1="34.2" x2="37.1" y2="37" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="24" y1="38" x2="24" y2="42" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="13.8" y1="34.2" x2="11" y2="37" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="10" y1="24" x2="6" y2="24" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                    <line x1="13.8" y1="13.8" x2="11" y2="11" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
+                </svg>
+                <div class="icon-label">Journey Book</div>
             </div>
         </div>
     </div>
@@ -355,7 +385,7 @@
         const appConfig = {
             audio: { title: 'Audio Mixer', src: 'AudioEditor.html', w: 1050, h: 650 },
             image: { title: 'Image Editor', src: 'ImageConverter.html', w: 950, h: 700 },
-            tasks: { title: 'Time', src: 'Tasks.html', w: 700, h: 600 },
+            tasks: { title: 'Journey Book', src: 'Tasks.html', w: 700, h: 600 },
             video: { title: 'Video Editor', src: 'VideoEditor.html', w: 900, h: 650 },
             about: { title: 'About', src: 'About.html', w: 440, h: 380, noResize: true, noMaximize: true, centered: true }
         };
