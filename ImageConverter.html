@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Converter</title>
+    <style>
+        @font-face {
+            font-family: 'Chicago';
+            src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            background: #c0c0c0;
+            color: #000;
+            min-height: 100vh;
+            cursor: default;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: none;
+        }
+
+        .desktop {
+            padding: 12px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .mac-window {
+            background: #fff;
+            border: 2px solid #000;
+            margin-bottom: 12px;
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        .title-bar {
+            height: 22px;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            position: relative;
+            user-select: none;
+        }
+
+        .title-bar-lines {
+            position: absolute;
+            left: 28px;
+            right: 28px;
+            top: 3px;
+            bottom: 3px;
+            background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
+        }
+
+        .title-bar-text {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            padding: 0 8px;
+            margin: 0 auto;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .close-box {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #000;
+            background: #fff;
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .close-box::before,
+        .close-box::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 2px;
+            background: #000;
+        }
+        .close-box::before { transform: translate(-50%, -50%) rotate(45deg); }
+        .close-box::after { transform: translate(-50%, -50%) rotate(-45deg); }
+        .close-box:hover { background: #000; }
+        .close-box:hover::before,
+        .close-box:hover::after { background: #fff; }
+        .close-box:active { background: #000; }
+
+        .window-content { padding: 16px; }
+
+        .upload-area {
+            border: 2px dashed #000;
+            padding: 36px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #fff;
+            transition: background 0.15s;
+        }
+        .upload-area:hover { background: #eee; }
+        .upload-area.dragover { background: #ddd; border-style: solid; }
+        .upload-icon { font-size: 28px; margin-bottom: 6px; display: block; }
+
+        .preview-wrap {
+            border: 2px inset #888;
+            background-color: #c0c0c0;
+            background-image:
+                linear-gradient(45deg, #b0b0b0 25%, transparent 25%),
+                linear-gradient(-45deg, #b0b0b0 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #b0b0b0 75%),
+                linear-gradient(-45deg, transparent 75%, #b0b0b0 75%);
+            background-size: 12px 12px;
+            background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 160px;
+            max-height: 560px;
+            overflow: visible;
+            position: relative;
+        }
+
+        #preview-canvas {
+            display: block;
+            image-rendering: auto;
+        }
+
+        .crop-bar {
+            display: flex;
+            gap: 8px;
+            padding: 10px 0 4px;
+            align-items: center;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 8px;
+        }
+        .crop-bar .crop-hint {
+            font-size: 11px;
+            color: #555;
+            margin-left: auto;
+        }
+
+        .info-row {
+            font-size: 12px;
+            padding: 10px 0 6px;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+        .info-row .label { color: #555; }
+
+        .controls-row {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: flex-start;
+            margin-bottom: 12px;
+        }
+
+        .control-group {
+            flex: 1;
+            min-width: 200px;
+        }
+        .control-group-title {
+            font-weight: bold;
+            font-size: 12px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 3px;
+            margin-bottom: 8px;
+        }
+
+        .field-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+        .field-row label {
+            white-space: nowrap;
+            font-weight: bold;
+        }
+        .field-row input[type="number"] {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            width: 80px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 3px 5px;
+            outline: none;
+        }
+        .field-row input[type="number"]:focus { border-color: #000; }
+
+        .field-row select {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 3px 5px;
+            outline: none;
+            cursor: pointer;
+        }
+
+        .field-row input[type="checkbox"] {
+            accent-color: #000;
+            width: 14px;
+            height: 14px;
+            vertical-align: middle;
+            margin-right: 2px;
+        }
+
+        .field-row input[type="range"] {
+            width: 100px;
+            accent-color: #000;
+        }
+        .quality-val {
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 30px;
+        }
+
+        .link-icon {
+            font-size: 16px;
+            line-height: 1;
+            user-select: none;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            padding-top: 6px;
+        }
+
+        .mac-btn {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            padding: 5px 16px;
+            border: 2px solid #000;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .mac-btn:hover { background: #ddd; }
+        .mac-btn:active { background: #000; color: #fff; }
+        .mac-btn-default { border-width: 3px; box-shadow: 0 0 0 1px #000; }
+        .mac-btn:disabled { color: #999; border-color: #999; cursor: default; background: #fff; }
+        .mac-btn:disabled:hover { background: #fff; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+            font-size: 13px;
+        }
+
+        ::selection { background: #000; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <div class="desktop">
+
+        <div class="mac-window">
+            <div class="title-bar">
+                <div class="title-bar-lines"></div>
+                <div class="title-bar-text">Image Converter</div>
+            </div>
+            <div class="window-content">
+                <div class="upload-area" id="upload-area">
+                    <span class="upload-icon">&#128444;</span>
+                    <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">Drop image here</div>
+                    <div style="font-size:12px;color:#666;">...or click to select a file</div>
+                    <input type="file" id="fileInput" accept="image/*,.heic,.heif" style="display:none;">
+                </div>
+            </div>
+        </div>
+
+        <div class="mac-window" id="editor-window" style="display:none">
+            <div class="title-bar">
+                <div class="close-box" onclick="resetAll()"></div>
+                <div class="title-bar-lines"></div>
+                <div class="title-bar-text" id="editor-title">Untitled</div>
+            </div>
+            <div class="window-content">
+                <div class="preview-wrap" id="preview-wrap">
+                    <canvas id="preview-canvas"></canvas>
+                </div>
+
+                <div id="crop-bar" class="crop-bar" style="display:none;">
+                    <button class="mac-btn mac-btn-default" onclick="applyCrop()">&#10003; Apply Crop</button>
+                    <button class="mac-btn" onclick="cancelCrop()">&#10005; Cancel</button>
+                    <span class="crop-hint">Drag corners to resize &bull; drag inside to move</span>
+                </div>
+
+                <div class="info-row" id="info-row">
+                    <span class="label">Original:</span> <span id="info-original">—</span>
+                    &nbsp;&nbsp;
+                    <span class="label">Current:</span> <span id="info-current">—</span>
+                </div>
+
+                <div class="controls-row">
+                    <div class="control-group">
+                        <div class="control-group-title">Resize</div>
+                        <div class="field-row">
+                            <label>W:</label>
+                            <input type="number" id="out-width" min="1" max="16000">
+                            <span class="link-icon" id="link-icon" title="Aspect ratio locked">&#9741;</span>
+                            <label>H:</label>
+                            <input type="number" id="out-height" min="1" max="16000">
+                        </div>
+                        <div class="field-row">
+                            <label><input type="checkbox" id="keep-aspect" checked> Keep proportions</label>
+                        </div>
+                    </div>
+
+                    <div class="control-group">
+                        <div class="control-group-title">Output</div>
+                        <div class="field-row">
+                            <label>Format:</label>
+                            <select id="out-format">
+                                <option value="image/png">PNG</option>
+                                <option value="image/jpeg">JPEG</option>
+                                <option value="image/webp">WebP</option>
+                                <option value="image/bmp">BMP</option>
+                            </select>
+                        </div>
+                        <div class="field-row" id="quality-row">
+                            <label>Quality:</label>
+                            <input type="range" id="out-quality" min="1" max="100" value="92" oninput="document.getElementById('quality-val').textContent=this.value+'%'">
+                            <span class="quality-val" id="quality-val">92%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="action-buttons">
+                    <button class="mac-btn" onclick="enterCropMode()" id="btn-crop">&#9986; Crop</button>
+                    <button class="mac-btn" onclick="resetImage()">&#8634; Reset</button>
+                    <button class="mac-btn mac-btn-default" onclick="downloadImage()">&#128190; Download</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <script>
+        let originalImage = null;
+        let originalFileName = '';
+        let originalFileSize = 0;
+        let workCanvas = document.createElement('canvas');
+        let workCtx = workCanvas.getContext('2d');
+
+        let displayScale = 1;
+        let cropActive = false;
+        let cropRect = { x: 0, y: 0, w: 0, h: 0 };
+        let dragType = null;
+        let dragStart = null;
+        let antOffset = 0;
+        let antRAF = null;
+
+        const previewCanvas = document.getElementById('preview-canvas');
+        const previewCtx = previewCanvas.getContext('2d');
+        const uploadArea = document.getElementById('upload-area');
+        const fileInput = document.getElementById('fileInput');
+
+        const HANDLE_SIZE = 7;
+        const HANDLE_HIT = 12;
+
+        // ================ UPLOAD ================
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+        uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
+        uploadArea.addEventListener('dragleave', () => uploadArea.classList.remove('dragover'));
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('dragover');
+            if (e.dataTransfer.files.length) loadFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) loadFile(e.target.files[0]);
+            e.target.value = '';
+        });
+
+        function isHeic(file) {
+            const name = file.name.toLowerCase();
+            return name.endsWith('.heic') || name.endsWith('.heif')
+                || file.type === 'image/heic' || file.type === 'image/heif';
+        }
+
+        async function loadFile(file) {
+            const isImage = file.type.startsWith('image/') || isHeic(file);
+            if (!isImage) { alert('Not an image file.'); return; }
+
+            originalFileName = file.name;
+            originalFileSize = file.size;
+
+            let blob = file;
+            if (isHeic(file)) {
+                uploadArea.querySelector('.upload-icon').textContent = '\u231B';
+                uploadArea.querySelector('div').textContent = 'Converting HEIC\u2026';
+                try {
+                    blob = await heic2any({ blob: file, toType: 'image/png', quality: 1 });
+                    if (Array.isArray(blob)) blob = blob[0];
+                } catch (err) {
+                    console.error(err);
+                    alert('Failed to decode HEIC file.');
+                    uploadArea.querySelector('.upload-icon').textContent = '\uD83D\uDDBC';
+                    uploadArea.querySelector('div').textContent = 'Drop image here';
+                    return;
+                }
+                uploadArea.querySelector('.upload-icon').textContent = '\uD83D\uDDBC';
+                uploadArea.querySelector('div').textContent = 'Drop image here';
+            }
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    originalImage = img;
+                    workCanvas.width = img.width;
+                    workCanvas.height = img.height;
+                    workCtx.drawImage(img, 0, 0);
+                    initEditor();
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(blob);
+        }
+
+        // ================ EDITOR INIT ================
+
+        function initEditor() {
+            cancelCrop();
+            document.getElementById('editor-window').style.display = 'block';
+            document.getElementById('editor-title').textContent = originalFileName;
+
+            updateInfo();
+            syncDimensionInputs();
+            onFormatChange();
+            drawPreview();
+        }
+
+        function updateInfo() {
+            const ow = originalImage.width, oh = originalImage.height;
+            const cw = workCanvas.width, ch = workCanvas.height;
+            const sizeStr = originalFileSize > 1048576
+                ? (originalFileSize / 1048576).toFixed(1) + ' MB'
+                : (originalFileSize / 1024).toFixed(1) + ' KB';
+
+            document.getElementById('info-original').textContent = `${ow} \u00d7 ${oh}  \u2014  ${originalFileName}  (${sizeStr})`;
+            document.getElementById('info-current').textContent = `${cw} \u00d7 ${ch}`;
+        }
+
+        function syncDimensionInputs() {
+            document.getElementById('out-width').value = workCanvas.width;
+            document.getElementById('out-height').value = workCanvas.height;
+        }
+
+        // ================ PREVIEW ================
+
+        const CANVAS_PAD = 8;
+
+        function drawPreview() {
+            const wrap = document.getElementById('preview-wrap');
+            const maxW = wrap.clientWidth - 4 - CANVAS_PAD * 2;
+            const maxH = 520 - CANVAS_PAD * 2;
+            const imgW = workCanvas.width;
+            const imgH = workCanvas.height;
+
+            if (imgW === 0 || imgH === 0) return;
+
+            displayScale = Math.min(maxW / imgW, maxH / imgH, 2);
+            const cw = Math.round(imgW * displayScale);
+            const ch = Math.round(imgH * displayScale);
+
+            previewCanvas.width = cw + CANVAS_PAD * 2;
+            previewCanvas.height = ch + CANVAS_PAD * 2;
+            previewCanvas.style.width = (cw + CANVAS_PAD * 2) + 'px';
+            previewCanvas.style.height = (ch + CANVAS_PAD * 2) + 'px';
+
+            previewCtx.imageSmoothingEnabled = true;
+            previewCtx.drawImage(workCanvas, 0, 0, imgW, imgH, CANVAS_PAD, CANVAS_PAD, cw, ch);
+
+            if (cropActive) drawCropOverlay(cw, ch);
+        }
+
+        function drawCropOverlay(cw, ch) {
+            const ctx = previewCtx;
+            const P = CANVAS_PAD;
+            const cr = {
+                x: cropRect.x * displayScale + P,
+                y: cropRect.y * displayScale + P,
+                w: cropRect.w * displayScale,
+                h: cropRect.h * displayScale
+            };
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.rect(P, P, cw, ch);
+            ctx.rect(cr.x + cr.w, cr.y, -cr.w, cr.h);
+            ctx.fillStyle = 'rgba(255,255,255,0.55)';
+            ctx.fill('evenodd');
+            ctx.restore();
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([5, 5]);
+            ctx.lineDashOffset = -antOffset;
+            ctx.strokeRect(cr.x + 0.5, cr.y + 0.5, cr.w, cr.h);
+
+            ctx.strokeStyle = '#fff';
+            ctx.lineDashOffset = -antOffset + 5;
+            ctx.strokeRect(cr.x + 0.5, cr.y + 0.5, cr.w, cr.h);
+            ctx.setLineDash([]);
+
+            const hs = HANDLE_SIZE;
+            ctx.fillStyle = '#fff';
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1.5;
+            const corners = [
+                [cr.x, cr.y],
+                [cr.x + cr.w, cr.y],
+                [cr.x, cr.y + cr.h],
+                [cr.x + cr.w, cr.y + cr.h]
+            ];
+            for (const [hx, hy] of corners) {
+                ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+                ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+            }
+
+            const dimText = `${Math.round(cropRect.w)} \u00d7 ${Math.round(cropRect.h)}`;
+            ctx.font = 'bold 12px "Chicago", "VT323", monospace';
+            const tm = ctx.measureText(dimText);
+            const tx = cr.x + cr.w / 2 - tm.width / 2;
+            const ty = cr.y + cr.h + 16;
+            if (ty < ch + P * 2 - 4) {
+                ctx.fillStyle = '#fff';
+                ctx.fillRect(tx - 3, ty - 11, tm.width + 6, 14);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(tx - 3, ty - 11, tm.width + 6, 14);
+                ctx.fillStyle = '#000';
+                ctx.fillText(dimText, tx, ty);
+            }
+        }
+
+        function animateCropAnts() {
+            if (!cropActive) return;
+            antOffset = (antOffset + 0.6) % 10;
+            drawPreview();
+            antRAF = requestAnimationFrame(animateCropAnts);
+        }
+
+        // ================ CROP TOOL ================
+
+        function enterCropMode() {
+            if (cropActive) return;
+            cropActive = true;
+            cropRect = { x: 0, y: 0, w: workCanvas.width, h: workCanvas.height };
+            document.getElementById('crop-bar').style.display = 'flex';
+            document.getElementById('btn-crop').disabled = true;
+            antOffset = 0;
+            animateCropAnts();
+        }
+
+        function applyCrop() {
+            const cx = Math.round(Math.max(0, cropRect.x));
+            const cy = Math.round(Math.max(0, cropRect.y));
+            const cw = Math.round(Math.min(cropRect.w, workCanvas.width - cx));
+            const ch = Math.round(Math.min(cropRect.h, workCanvas.height - cy));
+            if (cw < 1 || ch < 1) { cancelCrop(); return; }
+
+            const imageData = workCtx.getImageData(cx, cy, cw, ch);
+            workCanvas.width = cw;
+            workCanvas.height = ch;
+            workCtx.putImageData(imageData, 0, 0);
+
+            cancelCrop();
+            syncDimensionInputs();
+            updateInfo();
+            drawPreview();
+        }
+
+        function cancelCrop() {
+            cropActive = false;
+            dragType = null;
+            dragStart = null;
+            if (antRAF) { cancelAnimationFrame(antRAF); antRAF = null; }
+            document.getElementById('crop-bar').style.display = 'none';
+            document.getElementById('btn-crop').disabled = false;
+            drawPreview();
+        }
+
+        function getCropHit(mx, my) {
+            const P = CANVAS_PAD;
+            const cr = {
+                x: cropRect.x * displayScale + P,
+                y: cropRect.y * displayScale + P,
+                w: cropRect.w * displayScale,
+                h: cropRect.h * displayScale
+            };
+            const h = HANDLE_HIT;
+            if (near(mx, my, cr.x, cr.y, h)) return 'nw';
+            if (near(mx, my, cr.x + cr.w, cr.y, h)) return 'ne';
+            if (near(mx, my, cr.x, cr.y + cr.h, h)) return 'sw';
+            if (near(mx, my, cr.x + cr.w, cr.y + cr.h, h)) return 'se';
+            if (mx >= cr.x && mx <= cr.x + cr.w && my >= cr.y && my <= cr.y + cr.h) return 'move';
+            return null;
+        }
+
+        function near(x1, y1, x2, y2, r) {
+            return Math.abs(x1 - x2) < r && Math.abs(y1 - y2) < r;
+        }
+
+        function getCropCursor(type) {
+            const map = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', move: 'move' };
+            return map[type] || 'default';
+        }
+
+        previewCanvas.addEventListener('mousedown', (e) => {
+            if (!cropActive) return;
+            const rect = previewCanvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+            const hit = getCropHit(mx, my);
+            if (hit) {
+                dragType = hit;
+                dragStart = { mx, my, rect: { ...cropRect } };
+                e.preventDefault();
+            }
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!cropActive) return;
+            const rect = previewCanvas.getBoundingClientRect();
+            const mx = e.clientX - rect.left;
+            const my = e.clientY - rect.top;
+
+            if (dragType && dragStart) {
+                const dx = (mx - dragStart.mx) / displayScale;
+                const dy = (my - dragStart.my) / displayScale;
+                const sr = dragStart.rect;
+                const imgW = workCanvas.width;
+                const imgH = workCanvas.height;
+                const MIN = 10;
+
+                if (dragType === 'move') {
+                    cropRect.x = clamp(sr.x + dx, 0, imgW - sr.w);
+                    cropRect.y = clamp(sr.y + dy, 0, imgH - sr.h);
+                    cropRect.w = sr.w;
+                    cropRect.h = sr.h;
+                } else if (dragType === 'nw') {
+                    const nx = clamp(sr.x + dx, 0, sr.x + sr.w - MIN);
+                    const ny = clamp(sr.y + dy, 0, sr.y + sr.h - MIN);
+                    cropRect.w = sr.x + sr.w - nx;
+                    cropRect.h = sr.y + sr.h - ny;
+                    cropRect.x = nx;
+                    cropRect.y = ny;
+                } else if (dragType === 'ne') {
+                    const ny = clamp(sr.y + dy, 0, sr.y + sr.h - MIN);
+                    cropRect.w = clamp(sr.w + dx, MIN, imgW - sr.x);
+                    cropRect.h = sr.y + sr.h - ny;
+                    cropRect.y = ny;
+                } else if (dragType === 'sw') {
+                    const nx = clamp(sr.x + dx, 0, sr.x + sr.w - MIN);
+                    cropRect.w = sr.x + sr.w - nx;
+                    cropRect.h = clamp(sr.h + dy, MIN, imgH - sr.y);
+                    cropRect.x = nx;
+                } else if (dragType === 'se') {
+                    cropRect.w = clamp(sr.w + dx, MIN, imgW - sr.x);
+                    cropRect.h = clamp(sr.h + dy, MIN, imgH - sr.y);
+                }
+            } else {
+                const hit = getCropHit(mx, my);
+                previewCanvas.style.cursor = getCropCursor(hit);
+            }
+        });
+
+        window.addEventListener('mouseup', () => {
+            dragType = null;
+            dragStart = null;
+        });
+
+        function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+        // ================ RESIZE ================
+
+        document.getElementById('out-width').addEventListener('input', function () {
+            const w = parseInt(this.value);
+            if (!w || w < 1) return;
+            if (document.getElementById('keep-aspect').checked) {
+                const aspect = workCanvas.width / workCanvas.height;
+                document.getElementById('out-height').value = Math.round(w / aspect);
+            }
+        });
+
+        document.getElementById('out-height').addEventListener('input', function () {
+            const h = parseInt(this.value);
+            if (!h || h < 1) return;
+            if (document.getElementById('keep-aspect').checked) {
+                const aspect = workCanvas.width / workCanvas.height;
+                document.getElementById('out-width').value = Math.round(h * aspect);
+            }
+        });
+
+        document.getElementById('keep-aspect').addEventListener('change', function () {
+            const icon = document.getElementById('link-icon');
+            icon.textContent = this.checked ? '\u2605' : '\u2606';
+            if (this.checked) {
+                const w = parseInt(document.getElementById('out-width').value);
+                if (w > 0) {
+                    const aspect = workCanvas.width / workCanvas.height;
+                    document.getElementById('out-height').value = Math.round(w / aspect);
+                }
+            }
+        });
+
+        // ================ FORMAT ================
+
+        function onFormatChange() {
+            const fmt = document.getElementById('out-format').value;
+            const qRow = document.getElementById('quality-row');
+            qRow.style.display = (fmt === 'image/jpeg' || fmt === 'image/webp') ? 'flex' : 'none';
+        }
+        document.getElementById('out-format').addEventListener('change', onFormatChange);
+
+        // ================ RESET ================
+
+        function resetImage() {
+            if (!originalImage) return;
+            cancelCrop();
+            workCanvas.width = originalImage.width;
+            workCanvas.height = originalImage.height;
+            workCtx.drawImage(originalImage, 0, 0);
+            syncDimensionInputs();
+            updateInfo();
+            drawPreview();
+        }
+
+        function resetAll() {
+            cancelCrop();
+            originalImage = null;
+            document.getElementById('editor-window').style.display = 'none';
+        }
+
+        // ================ DOWNLOAD ================
+
+        function downloadImage() {
+            if (!workCanvas.width) return;
+
+            const outW = parseInt(document.getElementById('out-width').value) || workCanvas.width;
+            const outH = parseInt(document.getElementById('out-height').value) || workCanvas.height;
+            const fmt = document.getElementById('out-format').value;
+            const quality = parseInt(document.getElementById('out-quality').value) / 100;
+
+            const outCanvas = document.createElement('canvas');
+            outCanvas.width = outW;
+            outCanvas.height = outH;
+            const outCtx = outCanvas.getContext('2d');
+
+            if (fmt === 'image/jpeg') {
+                outCtx.fillStyle = '#fff';
+                outCtx.fillRect(0, 0, outW, outH);
+            }
+
+            outCtx.imageSmoothingEnabled = true;
+            outCtx.imageSmoothingQuality = 'high';
+            outCtx.drawImage(workCanvas, 0, 0, outW, outH);
+
+            const baseName = originalFileName.replace(/\.[^.]+$/, '') || 'image';
+
+            if (fmt === 'image/bmp') {
+                const blob = encodeBMP(outCanvas);
+                triggerDownload(blob, baseName + '.bmp');
+            } else {
+                const ext = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp' }[fmt] || '.png';
+                outCanvas.toBlob((blob) => {
+                    if (!blob) { alert('Export failed — format may not be supported by your browser.'); return; }
+                    triggerDownload(blob, baseName + ext);
+                }, fmt, quality);
+            }
+        }
+
+        function triggerDownload(blob, name) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = name;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+        }
+
+        function encodeBMP(canvas) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const imgData = ctx.getImageData(0, 0, w, h).data;
+
+            const rowBytes = w * 3;
+            const rowPad = (4 - rowBytes % 4) % 4;
+            const rowSize = rowBytes + rowPad;
+            const pixelDataSize = rowSize * h;
+            const fileSize = 54 + pixelDataSize;
+
+            const buf = new ArrayBuffer(fileSize);
+            const v = new DataView(buf);
+
+            v.setUint8(0, 0x42); v.setUint8(1, 0x4D);
+            v.setUint32(2, fileSize, true);
+            v.setUint32(10, 54, true);
+            v.setUint32(14, 40, true);
+            v.setInt32(18, w, true);
+            v.setInt32(22, -h, true);
+            v.setUint16(26, 1, true);
+            v.setUint16(28, 24, true);
+            v.setUint32(30, 0, true);
+            v.setUint32(34, pixelDataSize, true);
+            v.setUint32(38, 2835, true);
+            v.setUint32(42, 2835, true);
+
+            let off = 54;
+            for (let y = 0; y < h; y++) {
+                for (let x = 0; x < w; x++) {
+                    const i = (y * w + x) * 4;
+                    v.setUint8(off++, imgData[i + 2]);
+                    v.setUint8(off++, imgData[i + 1]);
+                    v.setUint8(off++, imgData[i]);
+                }
+                for (let p = 0; p < rowPad; p++) v.setUint8(off++, 0);
+            }
+
+            return new Blob([buf], { type: 'image/bmp' });
+        }
+
+        // ================ WINDOW RESIZE ================
+
+        window.addEventListener('resize', () => {
+            if (originalImage) drawPreview();
+        });
+    </script>
+</body>
+</html>

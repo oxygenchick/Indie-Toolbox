@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IndieOS</title>
+    <style>
+        @font-face {
+            font-family: 'Chicago';
+            src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            background-color: #a8a8a8;
+            background-image:
+                linear-gradient(45deg, #999 25%, transparent 25%),
+                linear-gradient(-45deg, #999 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #999 75%),
+                linear-gradient(-45deg, transparent 75%, #999 75%);
+            background-size: 4px 4px;
+            background-position: 0 0, 0 2px, 2px -2px, -2px 0;
+            color: #000;
+            cursor: default;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: none;
+            image-rendering: pixelated;
+            user-select: none;
+        }
+
+        ::selection { background: #000; color: #fff; }
+
+        .menu-bar {
+            position: fixed;
+            top: 0; left: 0; right: 0;
+            z-index: 9999;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            gap: 16px;
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .menu-bar .logo { height: 16px; width: auto; padding: 2px 4px; image-rendering: auto; }
+        .menu-bar .separator {
+            width: 1px;
+            height: 14px;
+            background: #000;
+            flex-shrink: 0;
+        }
+        .menu-bar .taskbar-items {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            flex: 1;
+            min-width: 0;
+            overflow: hidden;
+        }
+        .menu-bar .taskbar-item {
+            padding: 2px 10px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            border: 1px solid transparent;
+        }
+        .menu-bar .taskbar-item:hover {
+            background: #ddd;
+        }
+        .menu-bar .taskbar-item.active {
+            background: #000;
+            color: #fff;
+        }
+        .menu-bar .clock {
+            margin-left: auto;
+            font-weight: bold;
+            font-size: 12px;
+            padding-right: 4px;
+            flex-shrink: 0;
+        }
+
+        .desktop {
+            position: fixed;
+            top: 22px; left: 0; right: 0; bottom: 0;
+            overflow: hidden;
+        }
+
+        .desktop-icons {
+            position: absolute;
+            top: 20px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+            align-items: center;
+        }
+
+        .desktop-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            cursor: pointer;
+            width: 80px;
+            padding: 4px;
+            border: 2px solid transparent;
+        }
+        .desktop-icon:active .icon-img,
+        .desktop-icon.selected .icon-img {
+            filter: invert(1);
+        }
+        .desktop-icon:active .icon-label,
+        .desktop-icon.selected .icon-label {
+            background: #000;
+            color: #fff;
+        }
+
+        .icon-img {
+            width: 48px;
+            height: 48px;
+            image-rendering: pixelated;
+        }
+
+        .icon-label {
+            font-size: 12px;
+            text-align: center;
+            padding: 1px 4px;
+            white-space: nowrap;
+            font-weight: bold;
+        }
+
+        .app-window {
+            position: absolute;
+            background: #fff;
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0 #000;
+            display: flex;
+            flex-direction: column;
+            min-width: 400px;
+            min-height: 300px;
+        }
+
+        .app-title-bar {
+            height: 22px;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            position: relative;
+            cursor: grab;
+            flex-shrink: 0;
+        }
+        .app-title-bar:active { cursor: grabbing; }
+
+        .app-title-bar-lines {
+            position: absolute;
+            left: 48px;
+            right: 28px;
+            top: 3px;
+            bottom: 3px;
+            background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
+        }
+
+        .app-title-text {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            padding: 0 8px;
+            margin: 0 auto;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+        }
+
+        .app-close-box {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #000;
+            background: #fff;
+            position: relative;
+            z-index: 2;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .app-close-box::before,
+        .app-close-box::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 2px;
+            background: #000;
+        }
+        .app-close-box::before { transform: translate(-50%, -50%) rotate(45deg); }
+        .app-close-box::after { transform: translate(-50%, -50%) rotate(-45deg); }
+        .app-close-box:hover { background: #000; }
+        .app-close-box:hover::before,
+        .app-close-box:hover::after { background: #fff; }
+        .app-close-box:active { background: #000; }
+
+        .app-maximize-box {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #000;
+            background: #fff;
+            position: relative;
+            z-index: 2;
+            flex-shrink: 0;
+            cursor: pointer;
+            margin-left: 4px;
+        }
+        .app-maximize-box::after {
+            content: '';
+            position: absolute;
+            top: 1px;
+            left: 1px;
+            right: 1px;
+            bottom: 1px;
+            border: 1px solid #000;
+        }
+        .app-maximize-box:hover { background: #000; }
+        .app-maximize-box:hover::after { border-color: #fff; }
+        .app-maximize-box:active { background: #000; }
+
+        .app-window.maximized {
+            left: 0 !important;
+            top: 0 !important;
+            width: 100% !important;
+            height: 100% !important;
+            box-shadow: none;
+        }
+        .app-window.maximized .app-resize-handle { display: none; }
+
+        .app-body {
+            flex: 1;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .app-body iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+
+        .app-resize-handle {
+            position: absolute;
+            right: 0;
+            bottom: 0;
+            width: 16px;
+            height: 16px;
+            cursor: nwse-resize;
+            z-index: 5;
+            background:
+                linear-gradient(135deg, transparent 30%, #000 30%, #000 35%, transparent 35%,
+                transparent 45%, #000 45%, #000 50%, transparent 50%,
+                transparent 60%, #000 60%, #000 65%, transparent 65%,
+                transparent 75%, #000 75%, #000 80%, transparent 80%);
+        }
+
+        .inactive .app-title-bar-lines { opacity: 0; }
+    </style>
+</head>
+<body>
+
+    <div class="menu-bar">
+        <img class="logo" src="logo.png" alt="IndieOS">
+        <div class="separator"></div>
+        <div class="taskbar-items" id="taskbar-items"></div>
+        <span class="clock" id="menu-clock"></span>
+    </div>
+
+    <div class="desktop" id="desktop">
+        <div class="desktop-icons">
+            <div class="desktop-icon" ondblclick="openApp('audio')">
+                <svg class="icon-img" viewBox="0 0 48 48" fill="none">
+                    <rect x="4" y="6" width="40" height="36" rx="3" fill="#fff" stroke="#000" stroke-width="2"/>
+                    <rect x="8" y="10" width="32" height="24" fill="#000"/>
+                    <rect x="10" y="12" width="28" height="20" fill="#fff"/>
+                    <line x1="10" y1="22" x2="38" y2="22" stroke="#000" stroke-width="1"/>
+                    <polyline points="12,22 14,16 16,26 18,18 20,28 22,14 24,30 26,20 28,24 30,16 32,26 34,20 36,22" fill="none" stroke="#000" stroke-width="1.5"/>
+                    <rect x="16" y="36" width="16" height="4" fill="#000"/>
+                    <circle cx="24" cy="38" r="1.5" fill="#fff"/>
+                </svg>
+                <div class="icon-label">Audio Mixer</div>
+            </div>
+
+            <div class="desktop-icon" ondblclick="openApp('image')">
+                <svg class="icon-img" viewBox="0 0 48 48" fill="none">
+                    <rect x="4" y="4" width="40" height="40" rx="3" fill="#fff" stroke="#000" stroke-width="2"/>
+                    <rect x="8" y="8" width="32" height="32" fill="#ddd" stroke="#000" stroke-width="1"/>
+                    <circle cx="16" cy="16" r="4" fill="#fff" stroke="#000" stroke-width="1.5"/>
+                    <polygon points="8,36 18,22 26,32 30,26 40,36" fill="#000" opacity="0.2"/>
+                    <polyline points="8,36 18,22 26,32 30,26 40,36" fill="none" stroke="#000" stroke-width="1.5"/>
+                    <rect x="8" y="36" width="32" height="4" fill="#fff" stroke="#000" stroke-width="1"/>
+                </svg>
+                <div class="icon-label">Image Converter</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const desktop = document.getElementById('desktop');
+        const menuClock = document.getElementById('menu-clock');
+
+        let windows = {};
+        let topZ = 10;
+
+        const appConfig = {
+            audio: { title: 'Audio Mixer', src: 'AudioEditor.html', w: 1050, h: 650 },
+            image: { title: 'Image Converter', src: 'ImageConverter.html', w: 950, h: 700 }
+        };
+
+        function openApp(appId) {
+            if (windows[appId]) {
+                bringToFront(appId);
+                return;
+            }
+
+            const cfg = appConfig[appId];
+            const win = document.createElement('div');
+            win.className = 'app-window';
+            win.dataset.appId = appId;
+
+            const desktopRect = desktop.getBoundingClientRect();
+            const x = Math.max(20, (desktopRect.width - cfg.w) / 2 + (Object.keys(windows).length * 30));
+            const y = Math.max(10, (desktopRect.height - cfg.h) / 2 + (Object.keys(windows).length * 30));
+
+            win.style.left = x + 'px';
+            win.style.top = y + 'px';
+            win.style.width = cfg.w + 'px';
+            win.style.height = cfg.h + 'px';
+            win.style.zIndex = ++topZ;
+
+            win.innerHTML = `
+                <div class="app-title-bar">
+                    <div class="app-close-box" data-app="${appId}"></div>
+                    <div class="app-maximize-box" data-app="${appId}"></div>
+                    <div class="app-title-bar-lines"></div>
+                    <div class="app-title-text">${cfg.title}</div>
+                </div>
+                <div class="app-body">
+                    <iframe src="${cfg.src}"></iframe>
+                </div>
+                <div class="app-resize-handle" data-app="${appId}"></div>
+            `;
+
+            desktop.appendChild(win);
+            windows[appId] = win;
+
+            setupWindowDrag(win, appId);
+            setupWindowResize(win, appId);
+            bringToFront(appId);
+
+            win.querySelector('.app-close-box').addEventListener('click', (e) => {
+                e.stopPropagation();
+                closeApp(appId);
+            });
+
+            win.querySelector('.app-maximize-box').addEventListener('click', (e) => {
+                e.stopPropagation();
+                toggleMaximize(appId);
+            });
+
+            win.querySelector('.app-title-bar').addEventListener('dblclick', (e) => {
+                if (e.target.classList.contains('app-close-box') || e.target.classList.contains('app-maximize-box')) return;
+                toggleMaximize(appId);
+            });
+
+            win.addEventListener('mousedown', () => bringToFront(appId));
+
+            renderTaskbar();
+        }
+
+        function closeApp(appId) {
+            if (!windows[appId]) return;
+            windows[appId].remove();
+            delete windows[appId];
+            updateWindowStates();
+            renderTaskbar();
+        }
+
+        function toggleMaximize(appId) {
+            const win = windows[appId];
+            if (!win) return;
+
+            if (win.classList.contains('maximized')) {
+                win.classList.remove('maximized');
+                const saved = win._savedRect;
+                if (saved) {
+                    win.style.left = saved.left;
+                    win.style.top = saved.top;
+                    win.style.width = saved.width;
+                    win.style.height = saved.height;
+                }
+            } else {
+                win._savedRect = {
+                    left: win.style.left,
+                    top: win.style.top,
+                    width: win.style.width,
+                    height: win.style.height
+                };
+                win.classList.add('maximized');
+            }
+            bringToFront(appId);
+        }
+
+        function bringToFront(appId) {
+            if (!windows[appId]) return;
+            windows[appId].style.zIndex = ++topZ;
+            updateWindowStates();
+        }
+
+        function updateWindowStates() {
+            let maxZ = 0;
+            let frontId = null;
+            for (const id in windows) {
+                const z = parseInt(windows[id].style.zIndex) || 0;
+                if (z > maxZ) { maxZ = z; frontId = id; }
+            }
+            for (const id in windows) {
+                windows[id].classList.toggle('inactive', id !== frontId);
+            }
+            document.querySelectorAll('.taskbar-item').forEach(item => {
+                item.classList.toggle('active', item.dataset.app === frontId);
+            });
+        }
+
+        function renderTaskbar() {
+            const container = document.getElementById('taskbar-items');
+            container.innerHTML = '';
+            for (const id in windows) {
+                const item = document.createElement('span');
+                item.className = 'taskbar-item';
+                item.dataset.app = id;
+                item.textContent = appConfig[id].title;
+                item.addEventListener('click', () => bringToFront(id));
+                container.appendChild(item);
+            }
+            updateWindowStates();
+        }
+
+        function setupWindowDrag(win, appId) {
+            const titleBar = win.querySelector('.app-title-bar');
+            let isDragging = false;
+            let startX, startY, origX, origY;
+
+            titleBar.addEventListener('mousedown', (e) => {
+                if (e.target.classList.contains('app-close-box') || e.target.classList.contains('app-maximize-box')) return;
+                if (win.classList.contains('maximized')) return;
+                isDragging = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                origX = parseInt(win.style.left);
+                origY = parseInt(win.style.top);
+                bringToFront(appId);
+                disableIframes(true);
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                win.style.left = (origX + dx) + 'px';
+                win.style.top = (origY + dy) + 'px';
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isDragging) {
+                    isDragging = false;
+                    disableIframes(false);
+                }
+            });
+        }
+
+        function setupWindowResize(win, appId) {
+            const handle = win.querySelector('.app-resize-handle');
+            let isResizing = false;
+            let startX, startY, origW, origH;
+
+            handle.addEventListener('mousedown', (e) => {
+                isResizing = true;
+                startX = e.clientX;
+                startY = e.clientY;
+                origW = win.offsetWidth;
+                origH = win.offsetHeight;
+                bringToFront(appId);
+                disableIframes(true);
+                e.preventDefault();
+                e.stopPropagation();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!isResizing) return;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                win.style.width = Math.max(400, origW + dx) + 'px';
+                win.style.height = Math.max(300, origH + dy) + 'px';
+            });
+
+            window.addEventListener('mouseup', () => {
+                if (isResizing) {
+                    isResizing = false;
+                    disableIframes(false);
+                }
+            });
+        }
+
+        function disableIframes(disable) {
+            document.querySelectorAll('.app-body iframe').forEach(f => {
+                f.style.pointerEvents = disable ? 'none' : 'auto';
+            });
+        }
+
+        function updateClock() {
+            const now = new Date();
+            const h = now.getHours();
+            const m = now.getMinutes().toString().padStart(2, '0');
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            menuClock.textContent = `${h12}:${m} ${ampm}`;
+        }
+        updateClock();
+        setInterval(updateClock, 30000);
+    </script>
+</body>
+</html>

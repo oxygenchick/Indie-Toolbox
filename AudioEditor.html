@@ -1,0 +1,931 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Audio Mixer</title>
+    <style>
+        @font-face {
+            font-family: 'Chicago';
+            src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2');
+            font-weight: normal;
+            font-style: normal;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        * { box-sizing: border-box; }
+
+        body {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            margin: 0;
+            padding: 0;
+            background: #c0c0c0;
+            color: #000;
+            min-height: 100vh;
+            cursor: default;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: none;
+            image-rendering: pixelated;
+        }
+
+        .desktop {
+            padding: 12px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .mac-window {
+            background: #fff;
+            border: 2px solid #000;
+            margin-bottom: 12px;
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        .title-bar {
+            height: 22px;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            position: relative;
+            user-select: none;
+        }
+
+        .title-bar-lines {
+            position: absolute;
+            left: 28px;
+            right: 28px;
+            top: 3px;
+            bottom: 3px;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    #000 0px, #000 1px,
+                    #fff 1px, #fff 3px
+                );
+        }
+
+        .title-bar-text {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            padding: 0 8px;
+            margin: 0 auto;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        .close-box {
+            width: 14px;
+            height: 14px;
+            border: 2px solid #000;
+            background: #fff;
+            position: relative;
+            z-index: 1;
+            flex-shrink: 0;
+            cursor: pointer;
+        }
+        .close-box:active {
+            background: #000;
+        }
+
+        .window-content {
+            padding: 16px;
+        }
+
+        .upload-area {
+            border: 2px dashed #000;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            background: #fff;
+        }
+        .upload-area:hover {
+            background: #eee;
+        }
+        .upload-area.dragover {
+            background: #ddd;
+            border-style: solid;
+        }
+        .upload-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+            display: block;
+        }
+
+        .track-card {
+            background: #fff;
+            border: 2px solid #000;
+            margin-bottom: 12px;
+            box-shadow: 2px 2px 0 #000;
+        }
+
+        .track-title-bar {
+            height: 22px;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            position: relative;
+        }
+        .track-title-bar .title-bar-lines {
+            left: 28px;
+            right: 8px;
+        }
+        .track-title-text {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            padding: 0 6px;
+            font-size: 12px;
+            font-weight: bold;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+        }
+        .track-duration {
+            position: relative;
+            z-index: 1;
+            background: #fff;
+            padding: 0 4px;
+            margin-left: auto;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .track-body {
+            padding: 12px;
+        }
+
+        .canvas-container {
+            position: relative;
+            margin: 8px 0;
+            border: 2px inset #888;
+            background: #fff;
+            cursor: ew-resize;
+        }
+
+        canvas {
+            width: 100%;
+            height: 120px;
+            display: block;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 8px;
+            margin-top: 10px;
+        }
+        .controls-grid label {
+            font-size: 12px;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 3px;
+        }
+        .controls-grid input[type="number"] {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            width: 100%;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 3px 5px;
+            outline: none;
+        }
+        .controls-grid input[type="number"]:focus {
+            border-color: #000;
+        }
+        .controls-grid input[type="range"] {
+            width: 100%;
+            accent-color: #000;
+        }
+        .controls-grid input[type="checkbox"] {
+            accent-color: #000;
+            width: 14px;
+            height: 14px;
+            vertical-align: middle;
+            margin-right: 4px;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+            flex-wrap: wrap;
+        }
+
+        .mac-btn {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            padding: 5px 16px;
+            border: 2px solid #000;
+            border-radius: 6px;
+            background: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .mac-btn:hover {
+            background: #ddd;
+        }
+        .mac-btn:active {
+            background: #000;
+            color: #fff;
+        }
+        .mac-btn-default {
+            border-width: 3px;
+            box-shadow: 0 0 0 1px #000;
+        }
+        .mac-btn-danger {
+            /* same style, inverted on active */
+        }
+
+        .global-controls {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 16px;
+        }
+        .global-controls .mac-btn {
+            padding: 8px 24px;
+            font-size: 14px;
+        }
+
+        .timeline-window .window-content {
+            padding: 12px 16px;
+        }
+        .timeline-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+        .progress-outer {
+            height: 10px;
+            border: 2px inset #888;
+            background: #fff;
+            cursor: pointer;
+            position: relative;
+        }
+        .progress-inner {
+            position: absolute;
+            height: 100%;
+            background: #000;
+            width: 0%;
+            transition: none;
+        }
+
+        .info-text {
+            font-size: 11px;
+            color: #666;
+            margin-top: 6px;
+            line-height: 1.4;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .vol-display {
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 4px;
+        }
+
+        ::selection {
+            background: #000;
+            color: #fff;
+        }
+
+        .scroll-bar-v {
+            position: absolute;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: 16px;
+            border-left: 2px solid #000;
+            background:
+                repeating-linear-gradient(
+                    to bottom,
+                    #c0c0c0 0px, #c0c0c0 1px,
+                    #fff 1px, #fff 2px
+                );
+        }
+    </style>
+</head>
+<body>
+
+    <div class="desktop">
+
+        <div class="mac-window">
+            <div class="title-bar">
+                <div class="close-box"></div>
+                <div class="title-bar-lines"></div>
+                <div class="title-bar-text">Audio Mixer</div>
+            </div>
+            <div class="window-content">
+                <div class="upload-area" id="upload-area">
+                    <span class="upload-icon">&#128190;</span>
+                    <div style="font-weight:bold;font-size:14px;margin-bottom:6px;">Drop audio files here</div>
+                    <div style="font-size:12px;color:#666;">...or click to select files</div>
+                    <input type="file" id="fileInput" accept="audio/*" multiple style="display:none;">
+                </div>
+            </div>
+        </div>
+
+        <div id="tracks-container"></div>
+
+        <div class="mac-window timeline-window" id="mix-timeline" style="display:none;">
+            <div class="title-bar">
+                <div class="close-box"></div>
+                <div class="title-bar-lines"></div>
+                <div class="title-bar-text">Mix Timeline</div>
+            </div>
+            <div class="window-content">
+                <div class="timeline-row">
+                    <span id="mix-current">0:00</span>
+                    <span id="mix-total">0:00</span>
+                </div>
+                <div class="progress-outer" id="mix-progress-container">
+                    <div class="progress-inner" id="mix-progress-bar"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="mac-window">
+            <div class="title-bar">
+                <div class="close-box"></div>
+                <div class="title-bar-lines"></div>
+                <div class="title-bar-text">Controls</div>
+            </div>
+            <div class="global-controls">
+                <button onclick="toggleMixPlay()" id="mix-play-btn" class="mac-btn mac-btn-default">&#9654; Play Mix</button>
+                <button onclick="stopMix()" class="mac-btn">&#9632; Stop Mix</button>
+                <button onclick="downloadMix()" class="mac-btn">&#128190; Download WAV</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        let audioContext = null;
+        let tracks = [];
+        let activeTrackPlayers = new Map();
+        let mixPlayer = { isPlaying: false, startTime: 0, sources: [], raf: null };
+
+        const fileInput = document.getElementById('fileInput');
+        const uploadArea = document.getElementById('upload-area');
+
+        function initAudioContext() {
+            if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            return audioContext;
+        }
+
+        function setupDragAndDrop() {
+            uploadArea.addEventListener('click', () => fileInput.click());
+
+            uploadArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                uploadArea.classList.add('dragover');
+            });
+
+            uploadArea.addEventListener('dragleave', () => {
+                uploadArea.classList.remove('dragover');
+            });
+
+            uploadArea.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                uploadArea.classList.remove('dragover');
+                await loadFiles(e.dataTransfer.files);
+            });
+        }
+
+        async function loadFiles(files) {
+            initAudioContext();
+            for (let file of files) {
+                if (!file.type.startsWith('audio/')) continue;
+
+                try {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const buffer = await audioContext.decodeAudioData(arrayBuffer);
+
+                    tracks.push({
+                        id: 't' + Date.now() + Math.random().toString(36).substr(2,8),
+                        filename: file.name,
+                        buffer: buffer,
+                        duration: buffer.duration,
+                        trimStart: 0,
+                        trimEnd: buffer.duration,
+                        fadeInDuration: 1.5,
+                        fadeOutDuration: 1.5,
+                        volume: 1,
+                        muted: false
+                    });
+                } catch (err) {
+                    console.error(err);
+                    alert(`Could not load: ${file.name}`);
+                }
+            }
+            renderTracks();
+        }
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) loadFiles(e.target.files);
+            e.target.value = '';
+        });
+
+        function renderTracks() {
+            const container = document.getElementById('tracks-container');
+            container.innerHTML = '';
+
+            if (tracks.length === 0) {
+                container.innerHTML = `<div class="empty-state">No tracks loaded. Use Drag & Drop or click above.</div>`;
+                return;
+            }
+
+            tracks.forEach(track => {
+                const div = document.createElement('div');
+                div.className = 'track-card';
+                div.innerHTML = `
+                    <div class="track-title-bar">
+                        <div class="close-box" onclick="deleteTrack('${track.id}')"></div>
+                        <div class="title-bar-lines"></div>
+                        <div class="track-title-text">${track.filename}</div>
+                        <div class="track-duration">${(track.trimEnd - track.trimStart).toFixed(1)}s</div>
+                    </div>
+                    <div class="track-body">
+                        <div class="canvas-container">
+                            <canvas id="canvas-${track.id}" width="1400" height="120"></canvas>
+                        </div>
+                        <div class="controls-grid">
+                            <div><label>Start (s)</label><input type="number" step="0.01" value="${track.trimStart.toFixed(2)}" onchange="updateTrim('${track.id}','trimStart',parseFloat(this.value))"></div>
+                            <div><label>End (s)</label><input type="number" step="0.01" value="${track.trimEnd.toFixed(2)}" onchange="updateTrim('${track.id}','trimEnd',parseFloat(this.value))"></div>
+                            <div><label>Fade In (s)</label><input type="number" step="0.1" min="0" value="${track.fadeInDuration}" onchange="updateFade('${track.id}','fadeInDuration',parseFloat(this.value))"></div>
+                            <div><label>Fade Out (s)</label><input type="number" step="0.1" min="0" value="${track.fadeOutDuration}" onchange="updateFade('${track.id}','fadeOutDuration',parseFloat(this.value))"></div>
+                            <div><label>Volume</label><input type="range" min="0" max="200" value="${track.volume*100}" oninput="updateTrack('${track.id}','volume',this.value/100);this.nextElementSibling.textContent=this.value+'%'"><span class="vol-display">${Math.round(track.volume*100)}%</span></div>
+                            <div style="display:flex;align-items:end;padding-bottom:2px;"><label style="margin:0;cursor:pointer;"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)">Mute in mix</label></div>
+                        </div>
+                        <div class="action-buttons">
+                            <button class="mac-btn mac-btn-default" onclick="toggleTrack('${track.id}')">&#9654; Play w/ Fades</button>
+                            <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; Trim & Bake</button>
+                            <button class="mac-btn mac-btn-danger" onclick="deleteTrack('${track.id}')">&#9003; Delete</button>
+                        </div>
+                        <div class="info-text">Thick lines = trim boundaries &nbsp;|&nbsp; Thin lines = fade start/end</div>
+                    </div>
+                `;
+                container.appendChild(div);
+
+                const canvas = document.getElementById(`canvas-${track.id}`);
+                drawWaveform(canvas, track);
+                setupDragHandles(track.id, canvas);
+            });
+        }
+
+        function drawWaveform(canvas, track, playPercent = null) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(0, 0, w, h);
+
+            if (!track.buffer) return;
+
+            const data = track.buffer.getChannelData(0);
+            const step = Math.ceil(data.length / w);
+
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = 0; x < w; x++) {
+                let minv = 1, maxv = -1;
+                for (let i = Math.floor(x * step); i < Math.min((x + 1) * step, data.length); i++) {
+                    const v = data[i];
+                    if (v < minv) minv = v;
+                    if (v > maxv) maxv = v;
+                }
+                ctx.moveTo(x, h / 2 * (1 + minv));
+                ctx.lineTo(x, h / 2 * (1 + maxv));
+            }
+            ctx.stroke();
+
+            const startPx = (track.trimStart / track.duration) * w;
+            const endPx = (track.trimEnd / track.duration) * w;
+            const fadeInEndPx = ((track.trimStart + track.fadeInDuration) / track.duration) * w;
+            const fadeOutStartPx = ((track.trimEnd - track.fadeOutDuration) / track.duration) * w;
+
+            // selected region — hatching pattern
+            ctx.save();
+            ctx.globalAlpha = 0.12;
+            ctx.fillStyle = '#000';
+            ctx.fillRect(startPx, 0, endPx - startPx, h);
+            ctx.restore();
+
+            // trim boundaries — thick
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(startPx, 0); ctx.lineTo(startPx, h);
+            ctx.moveTo(endPx, 0); ctx.lineTo(endPx, h);
+            ctx.stroke();
+
+            // fade in line — dashed
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.moveTo(fadeInEndPx, 0); ctx.lineTo(fadeInEndPx, h);
+            ctx.stroke();
+
+            // fade out line — dashed
+            ctx.beginPath();
+            ctx.moveTo(fadeOutStartPx, 0); ctx.lineTo(fadeOutStartPx, h);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // fade envelope curves
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(startPx, h);
+            ctx.lineTo(fadeInEndPx, 0);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(fadeOutStartPx, 0);
+            ctx.lineTo(endPx, h);
+            ctx.stroke();
+
+            if (playPercent !== null) {
+                const playPx = startPx + (endPx - startPx) * playPercent;
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.setLineDash([2, 2]);
+                ctx.beginPath();
+                ctx.moveTo(playPx, 0); ctx.lineTo(playPx, h);
+                ctx.stroke();
+                ctx.setLineDash([]);
+
+                // playhead triangle
+                ctx.fillStyle = '#000';
+                ctx.beginPath();
+                ctx.moveTo(playPx - 6, 0);
+                ctx.lineTo(playPx + 6, 0);
+                ctx.lineTo(playPx, 10);
+                ctx.closePath();
+                ctx.fill();
+            }
+        }
+
+        function setupDragHandles(trackId, canvas) {
+            let draggingType = null;
+            const track = tracks.find(t => t.id === trackId);
+
+            canvas.addEventListener('mousedown', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const w = rect.width;
+
+                const positions = {
+                    trimStart: (track.trimStart / track.duration) * w,
+                    fadeInEnd: ((track.trimStart + track.fadeInDuration) / track.duration) * w,
+                    fadeOutStart: ((track.trimEnd - track.fadeOutDuration) / track.duration) * w,
+                    trimEnd: (track.trimEnd / track.duration) * w
+                };
+
+                let minDist = Infinity;
+                for (let type in positions) {
+                    const dist = Math.abs(clickX - positions[type]);
+                    if (dist < minDist) {
+                        minDist = dist;
+                        draggingType = type;
+                    }
+                }
+                if (minDist > 25) draggingType = null;
+            });
+
+            const onMove = (e) => {
+                if (!draggingType) return;
+                const rect = canvas.getBoundingClientRect();
+                let clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                const percent = clickX / rect.width;
+                const newTime = percent * track.duration;
+
+                if (draggingType === 'trimStart') track.trimStart = Math.max(0, Math.min(newTime, track.trimEnd - 0.2));
+                else if (draggingType === 'trimEnd') track.trimEnd = Math.max(track.trimStart + 0.2, Math.min(newTime, track.duration));
+                else if (draggingType === 'fadeInEnd') track.fadeInDuration = Math.max(0, Math.min(newTime - track.trimStart, track.trimEnd - track.trimStart));
+                else if (draggingType === 'fadeOutStart') track.fadeOutDuration = Math.max(0, Math.min(track.trimEnd - newTime, track.trimEnd - track.trimStart));
+
+                drawWaveform(canvas, track);
+            };
+
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', () => draggingType = null);
+        }
+
+        function updateTrim(id, prop, value) {
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+            if (prop === 'trimStart') value = Math.max(0, Math.min(value, track.trimEnd - 0.2));
+            if (prop === 'trimEnd') value = Math.max(track.trimStart + 0.2, Math.min(value, track.duration));
+            track[prop] = value;
+            const canvas = document.getElementById(`canvas-${id}`);
+            if (canvas) drawWaveform(canvas, track);
+        }
+
+        function updateFade(id, prop, value) {
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+            const max = track.trimEnd - track.trimStart;
+            track[prop] = Math.max(0, Math.min(value, max));
+            const canvas = document.getElementById(`canvas-${id}`);
+            if (canvas) drawWaveform(canvas, track);
+        }
+
+        function updateTrack(id, prop, value) {
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+            if (prop === 'volume') value = Math.max(0, Math.min(2, value));
+            track[prop] = value;
+            renderTracks();
+        }
+
+        function toggleTrack(id) {
+            if (activeTrackPlayers.has(id)) stopTrack(id);
+            else playTrack(id, 0);
+        }
+
+        function playTrack(id, relativeSeek) {
+            stopTrack(id);
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+
+            const ctx = initAudioContext();
+            const source = ctx.createBufferSource();
+            source.buffer = track.buffer;
+
+            const envelope = ctx.createGain();
+            const volumeGain = ctx.createGain();
+            volumeGain.gain.value = track.volume;
+
+            source.connect(envelope).connect(volumeGain).connect(ctx.destination);
+
+            const trimDur = track.trimEnd - track.trimStart;
+            const startPos = track.trimStart + relativeSeek;
+            const playDur = trimDur - relativeSeek;
+            const startTime = ctx.currentTime;
+
+            envelope.gain.setValueAtTime(0, startTime);
+            envelope.gain.linearRampToValueAtTime(1, startTime + track.fadeInDuration);
+
+            const fadeOutStart = startTime + playDur - track.fadeOutDuration;
+            if (track.fadeOutDuration > 0) {
+                envelope.gain.setValueAtTime(1, fadeOutStart);
+                envelope.gain.linearRampToValueAtTime(0, startTime + playDur);
+            }
+
+            source.start(startTime, startPos, playDur);
+
+            activeTrackPlayers.set(id, { source, startTime, seekOffset: relativeSeek, track, raf: null });
+            updateTrackPlayhead(id);
+        }
+
+        function stopTrack(id) {
+            if (!activeTrackPlayers.has(id)) return;
+            const p = activeTrackPlayers.get(id);
+            try { p.source.stop(); } catch(e) {}
+            if (p.raf) cancelAnimationFrame(p.raf);
+            activeTrackPlayers.delete(id);
+
+            const canvas = document.getElementById(`canvas-${id}`);
+            if (canvas) drawWaveform(canvas, p.track);
+        }
+
+        function updateTrackPlayhead(id) {
+            const p = activeTrackPlayers.get(id);
+            if (!p) return;
+            const elapsed = audioContext.currentTime - p.startTime + p.seekOffset;
+            const dur = p.track.trimEnd - p.track.trimStart;
+            const percent = Math.min(elapsed / dur, 1);
+
+            const canvas = document.getElementById(`canvas-${id}`);
+            if (canvas) drawWaveform(canvas, p.track, percent);
+
+            if (percent < 1) p.raf = requestAnimationFrame(() => updateTrackPlayhead(id));
+            else stopTrack(id);
+        }
+
+        async function applyTrim(id) {
+            const track = tracks.find(t => t.id === id);
+            if (!track) return;
+            stopTrack(id);
+
+            const trimDur = track.trimEnd - track.trimStart;
+            const offline = new OfflineAudioContext(2, Math.ceil(trimDur * track.buffer.sampleRate), track.buffer.sampleRate);
+
+            const source = offline.createBufferSource();
+            source.buffer = track.buffer;
+            const envelope = offline.createGain();
+            const volumeGain = offline.createGain();
+            volumeGain.gain.value = track.volume;
+
+            source.connect(envelope).connect(volumeGain).connect(offline.destination);
+
+            envelope.gain.setValueAtTime(0, 0);
+            envelope.gain.linearRampToValueAtTime(1, track.fadeInDuration);
+
+            const fadeOutStart = trimDur - track.fadeOutDuration;
+            if (track.fadeOutDuration > 0) {
+                envelope.gain.setValueAtTime(1, fadeOutStart);
+                envelope.gain.linearRampToValueAtTime(0, trimDur);
+            }
+
+            source.start(0, track.trimStart, trimDur);
+
+            const newBuffer = await offline.startRendering();
+
+            track.buffer = newBuffer;
+            track.duration = newBuffer.duration;
+            track.trimStart = 0;
+            track.trimEnd = newBuffer.duration;
+            track.fadeInDuration = 0;
+            track.fadeOutDuration = 0;
+
+            renderTracks();
+            alert('Track trimmed and fades baked!');
+        }
+
+        function deleteTrack(id) {
+            if (confirm('Delete this track?')) {
+                stopTrack(id);
+                tracks = tracks.filter(t => t.id !== id);
+                renderTracks();
+            }
+        }
+
+        function toggleMixPlay() {
+            if (mixPlayer.isPlaying) stopMix();
+            else playMix();
+        }
+
+        function playMix() {
+            stopMix();
+            initAudioContext();
+            const startTime = audioContext.currentTime + 0.1;
+            mixPlayer.startTime = startTime;
+            mixPlayer.isPlaying = true;
+            document.getElementById('mix-play-btn').innerHTML = '&#10074;&#10074; Pause';
+
+            let maxDur = 0;
+            tracks.forEach(t => { if (!t.muted) maxDur = Math.max(maxDur, t.trimEnd - t.trimStart); });
+
+            document.getElementById('mix-total').textContent = formatTime(maxDur);
+            document.getElementById('mix-timeline').style.display = 'block';
+
+            tracks.forEach(track => {
+                if (track.muted || track.trimEnd <= track.trimStart) return;
+
+                const source = audioContext.createBufferSource();
+                source.buffer = track.buffer;
+                const envelope = audioContext.createGain();
+                const volumeGain = audioContext.createGain();
+                volumeGain.gain.value = track.volume;
+
+                source.connect(envelope).connect(volumeGain).connect(audioContext.destination);
+
+                const dur = track.trimEnd - track.trimStart;
+                envelope.gain.setValueAtTime(0, startTime);
+                envelope.gain.linearRampToValueAtTime(1, startTime + track.fadeInDuration);
+
+                const fadeOutTime = startTime + dur - track.fadeOutDuration;
+                if (track.fadeOutDuration > 0) {
+                    envelope.gain.setValueAtTime(1, fadeOutTime);
+                    envelope.gain.linearRampToValueAtTime(0, startTime + dur);
+                }
+
+                source.start(startTime, track.trimStart, dur);
+                mixPlayer.sources.push(source);
+            });
+
+            updateMixProgress(maxDur);
+        }
+
+        function stopMix() {
+            mixPlayer.sources.forEach(s => { try { s.stop(); } catch(e){} });
+            mixPlayer.sources = [];
+            mixPlayer.isPlaying = false;
+            if (mixPlayer.raf) cancelAnimationFrame(mixPlayer.raf);
+            document.getElementById('mix-play-btn').innerHTML = '&#9654; Play Mix';
+            document.getElementById('mix-progress-bar').style.width = '0%';
+        }
+
+        function updateMixProgress(totalDur) {
+            if (!mixPlayer.isPlaying) return;
+            const elapsed = audioContext.currentTime - mixPlayer.startTime;
+            const percent = Math.min((elapsed / totalDur) * 100, 100);
+            document.getElementById('mix-progress-bar').style.width = percent + '%';
+            document.getElementById('mix-current').textContent = formatTime(elapsed);
+
+            if (elapsed < totalDur) mixPlayer.raf = requestAnimationFrame(() => updateMixProgress(totalDur));
+            else stopMix();
+        }
+
+        function formatTime(sec) {
+            const m = Math.floor(sec / 60);
+            const s = Math.floor(sec % 60);
+            return `${m}:${s < 10 ? '0' : ''}${s}`;
+        }
+
+        async function downloadMix() {
+            if (tracks.length === 0) return alert('No tracks loaded');
+            initAudioContext();
+
+            let maxDur = 0;
+            tracks.forEach(t => { if (!t.muted) maxDur = Math.max(maxDur, t.trimEnd - t.trimStart); });
+            if (maxDur === 0) return alert('No active tracks');
+
+            const offline = new OfflineAudioContext(2, Math.ceil(maxDur * audioContext.sampleRate), audioContext.sampleRate);
+
+            tracks.forEach(track => {
+                if (track.muted || track.trimEnd <= track.trimStart) return;
+                const source = offline.createBufferSource();
+                source.buffer = track.buffer;
+                const envelope = offline.createGain();
+                const volumeGain = offline.createGain();
+                volumeGain.gain.value = track.volume;
+
+                source.connect(envelope).connect(volumeGain).connect(offline.destination);
+
+                const dur = track.trimEnd - track.trimStart;
+                envelope.gain.setValueAtTime(0, 0);
+                envelope.gain.linearRampToValueAtTime(1, track.fadeInDuration);
+
+                const fadeOutStart = dur - track.fadeOutDuration;
+                if (track.fadeOutDuration > 0) {
+                    envelope.gain.setValueAtTime(1, fadeOutStart);
+                    envelope.gain.linearRampToValueAtTime(0, dur);
+                }
+
+                source.start(0, track.trimStart, dur);
+            });
+
+            const rendered = await offline.startRendering();
+            const wav = encodeWAV(rendered);
+            const url = URL.createObjectURL(wav);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `mix_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.wav`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function encodeWAV(buffer) {
+            const numChannels = buffer.numberOfChannels;
+            const sampleRate = buffer.sampleRate;
+            const length = buffer.length * numChannels * 2;
+            const arrayBuffer = new ArrayBuffer(44 + length);
+            const view = new DataView(arrayBuffer);
+
+            function writeString(v, o, s) { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); }
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + length, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * 2, true);
+            view.setUint16(32, numChannels * 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, length, true);
+
+            let offset = 44;
+            for (let i = 0; i < buffer.length; i++) {
+                for (let ch = 0; ch < numChannels; ch++) {
+                    let sample = buffer.getChannelData(ch)[i];
+                    sample = Math.max(-1, Math.min(1, sample));
+                    view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
+                    offset += 2;
+                }
+            }
+            return new Blob([arrayBuffer], {type: 'audio/wav'});
+        }
+
+        window.onload = () => {
+            setupDragAndDrop();
+        };
+    </script>
+</body>
+</html>
