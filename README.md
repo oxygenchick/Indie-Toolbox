@@ -1,6 +1,6 @@
 # Indie Toolbox
 
-**[Open Indie Toolbox](https://pavele11.github.io/IndieToolbox/)**
+**[Open Indie Toolbox](https://oxygenchick.github.io/Indie-Toolbox/)**
 
 ![Indie Toolbox](demo.jpg)
 
