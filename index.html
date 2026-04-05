@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Indie Toolbox</title>
+    <script>
+        if (window.matchMedia('(max-width: 768px)').matches) {
+            window.location.replace('mobile.html');
+        }
+    </script>
     <link rel="stylesheet" href="dither-ui.css">
     <style>
         @font-face {
@@ -441,7 +446,7 @@
             image: { title: 'Image Editor', src: 'ImageConverter.html', w: 950, h: 700 },
             tasks: { title: 'Journey Book', src: 'Tasks.html', w: 700, h: 600 },
             video: { title: 'Video Editor', src: 'VideoEditor.html', w: 900, h: 650 },
-            about: { title: 'About', src: 'About.html', w: 440, h: 380, noResize: true, noMaximize: true, centered: true }
+            about: { title: 'About', src: 'About.html', w: 440, h: 400, noResize: true, noMaximize: true, centered: true }
         };
 
         function openApp(appId) {

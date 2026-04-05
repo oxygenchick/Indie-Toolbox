@@ -25,7 +25,7 @@
             flex-direction: column;
             height: 100vh;
             overflow: hidden;
-            padding: 20px 28px 14px;
+            padding: 20px 28px 20px;
             -webkit-font-smoothing: none;
             -moz-osx-font-smoothing: none;
             user-select: none;
@@ -87,8 +87,10 @@
         .twitter-link:hover .x-logo { opacity: 0.6; }
 
         .x-logo {
-            width: 28px;
-            height: 28px;
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            image-rendering: auto;
         }
 
         .twitter-name {
@@ -116,9 +118,9 @@
         Indie Toolbox is a collection of everyday tools to help indie developers — and beyond — tackle their small daily tasks. No more hunting for software, installing apps, or relying on online services just to crop an image or mix some audio. I've gathered here, and will keep gathering, the tools I find missing in my own workflow. Best of luck with your products. May the Force and patience be with you, and return to you as the good fortune you deserve.
     </div>
     <div class="footer">
-        <a class="twitter-link" href="https://x.com/Pavel_Efremov_" target="_blank">
-            <svg class="x-logo" viewBox="0 0 24 24" fill="#000"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-            <span class="twitter-name">Pavel Efremov</span>
+        <a class="twitter-link" href="https://oxygenchick.github.io/personal-page/" target="_blank" rel="noopener noreferrer">
+            <img class="x-logo" src="assets/Logo_2.png" alt="Logo">
+            <span class="twitter-name">Oxygen Chick</span>
         </a>
         <label class="dont-show">
             <input type="checkbox" id="dont-show-check" onchange="toggleDontShow(this.checked)">
