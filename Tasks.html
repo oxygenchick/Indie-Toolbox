@@ -1663,10 +1663,20 @@
     function addJournalEntry() {
         const now = new Date();
         journalViewDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        if (journalEditingIndex !== null) journalSyncEditorToData();
         journal.unshift({ created: now.toISOString(), text: '' });
-        if (journalEditingIndex !== null) journalEditingIndex++;
+        journalEditingIndex = 0;
         save();
         renderJournal();
+        requestAnimationFrame(() => {
+            const t = document.querySelector('textarea.journal-text[data-ji="0"]');
+            if (t) {
+                t.focus();
+                const len = t.value.length;
+                t.setSelectionRange(len, len);
+                autoGrow(t);
+            }
+        });
     }
 
     function journalMonthPrev() {
