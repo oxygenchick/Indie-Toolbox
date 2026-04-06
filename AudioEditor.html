@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Audio Mixer</title>
     <link rel="stylesheet" href="dither-ui.css">
@@ -510,13 +511,13 @@
         <div class="mac-window">
             <div class="title-bar">
                 <div class="title-bar-lines"></div>
-                <div class="title-bar-text">Upload</div>
+                <div class="title-bar-text" data-i18n="audio.uploadBar">Upload</div>
             </div>
             <div class="window-content">
                 <div class="upload-area" id="upload-area">
                     <span class="upload-icon">&#9835;</span>
-                    <div style="font-weight:bold;font-size:14px;margin-bottom:6px;">Drop audio files here</div>
-                    <div style="font-size:12px;color:#666;">...or click to select files</div>
+                    <div style="font-weight:bold;font-size:14px;margin-bottom:6px;" data-i18n="audio.dropHere">Drop audio files here</div>
+                    <div style="font-size:12px;color:#666;" data-i18n="audio.dropHint">...or click to select files</div>
                     <input type="file" id="fileInput" accept="audio/*" multiple style="display:none;">
                 </div>
             </div>
@@ -527,7 +528,7 @@
         <div class="mac-window timeline-window" id="mix-timeline">
             <div class="title-bar">
                 <div class="title-bar-lines"></div>
-                <div class="title-bar-text">Mix Timeline</div>
+                <div class="title-bar-text" data-i18n="audio.mixBar">Mix Timeline</div>
             </div>
             <div class="window-content">
                 <div class="timeline-row">
@@ -543,10 +544,10 @@
         <div class="mac-window">
             <div class="title-bar">
                 <div class="title-bar-lines"></div>
-                <div class="title-bar-text">Controls</div>
+                <div class="title-bar-text" data-i18n="audio.controlsBar">Controls</div>
             </div>
             <div class="tl-controls">
-                <label><input type="checkbox" id="custom-tl-check" onchange="toggleCustomTimeline(this.checked)"> Custom Timeline Length</label>
+                <label><input type="checkbox" id="custom-tl-check" onchange="toggleCustomTimeline(this.checked)"> <span data-i18n="audio.customTimeline">Custom Timeline Length</span></label>
                 <span id="custom-tl-input-wrap" style="display:none">
                     <input type="number" id="custom-tl-length" min="1" step="1" value="60" onchange="setCustomTimelineLength(parseFloat(this.value))"> sec
                 </span>
@@ -554,14 +555,15 @@
             </div>
             <div id="global-timeline-area"></div>
             <div class="global-controls">
-                <button onclick="toggleMixPlay()" id="mix-play-btn" class="mac-btn">&#9654; Play Mix</button>
-                <button onclick="stopMix()" class="mac-btn">&#9632; Stop Mix</button>
-                <button onclick="downloadMix()" class="mac-btn">&#8615; Download WAV</button>
+                <button onclick="toggleMixPlay()" id="mix-play-btn" class="mac-btn">&#9654; <span data-i18n="audio.playMix">Play Mix</span></button>
+                <button onclick="stopMix()" class="mac-btn">&#9632; <span data-i18n="audio.stopMix">Stop Mix</span></button>
+                <button onclick="downloadMix()" class="mac-btn">&#8615; <span data-i18n="audio.downloadWav">Download WAV</span></button>
             </div>
         </div>
 
     </div>
 
+    <script src="i18n.js"></script>
     <script>
         let audioContext = null;
         let tracks = [];
@@ -622,7 +624,7 @@
                     });
                 } catch (err) {
                     console.error(err);
-                    alert(`Could not load: ${file.name}`);
+                    alert(I18n.t('audio.couldNotLoad').replace('{name}', file.name));
                 }
             }
             renderTracks();
@@ -673,7 +675,7 @@
             if (!area) return;
             const activeTracks = tracks.filter(t => !t.muted && t.trimEnd > t.trimStart);
             if (activeTracks.length === 0) {
-                area.innerHTML = '<div class="global-timeline-empty">No active tracks</div>';
+                area.innerHTML = '<div class="global-timeline-empty">' + I18n.t('audio.noActiveTracksGlobal') + '</div>';
                 tlTrackRects = [];
                 updateTlInfo(0);
                 return;
@@ -793,7 +795,7 @@
 
         function updateTlInfo(dur) {
             const el = document.getElementById('tl-total-info');
-            if (el) el.textContent = dur > 0 ? 'Total: ' + formatTime(dur) : '';
+            if (el) el.textContent = dur > 0 ? I18n.t('audio.totalPrefix') + formatTime(dur) : '';
         }
 
         function setupGlobalTimelineDrag() {
@@ -871,7 +873,7 @@
             container.innerHTML = '';
 
             if (tracks.length === 0) {
-                container.innerHTML = `<div class="empty-state">No tracks loaded. Use Drag & Drop or click above.</div>`;
+                container.innerHTML = '<div class="empty-state">' + I18n.t('audio.emptyNoTracks') + '</div>';
                 renderGlobalTimeline();
                 return;
             }
@@ -893,20 +895,20 @@
                             <canvas id="canvas-${track.id}" width="1400" height="120"></canvas>
                         </div>
                         <div class="controls-grid">
-                            <div><label>Start (s)</label><input type="number" step="0.01" value="${track.trimStart.toFixed(2)}" onchange="updateTrim('${track.id}','trimStart',parseFloat(this.value))"></div>
-                            <div><label>End (s)</label><input type="number" step="0.01" value="${track.trimEnd.toFixed(2)}" onchange="updateTrim('${track.id}','trimEnd',parseFloat(this.value))"></div>
-                            <div><label>Fade In (s)</label><input type="number" step="0.1" min="0" value="${track.fadeInDuration}" onchange="updateFade('${track.id}','fadeInDuration',parseFloat(this.value))"></div>
-                            <div><label>Fade Out (s)</label><input type="number" step="0.1" min="0" value="${track.fadeOutDuration}" onchange="updateFade('${track.id}','fadeOutDuration',parseFloat(this.value))"></div>
-                            <div><label>Offset (s)</label><input type="number" step="0.1" min="0" value="${(track.offset||0).toFixed(2)}" onchange="updateOffset('${track.id}',parseFloat(this.value))"></div>
-                            <div><label>Volume</label><input type="range" min="0" max="200" value="${track.volume*100}" oninput="updateTrack('${track.id}','volume',this.value/100);this.nextElementSibling.textContent=this.value+'%'"><span class="vol-display">${Math.round(track.volume*100)}%</span></div>
-                            <div style="display:flex;align-items:end;padding-bottom:2px;"><label style="margin:0;cursor:pointer;"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)">Mute in mix</label></div>
+                            <div><label>${I18n.t('audio.labelStart')}</label><input type="number" step="0.01" value="${track.trimStart.toFixed(2)}" onchange="updateTrim('${track.id}','trimStart',parseFloat(this.value))"></div>
+                            <div><label>${I18n.t('audio.labelEnd')}</label><input type="number" step="0.01" value="${track.trimEnd.toFixed(2)}" onchange="updateTrim('${track.id}','trimEnd',parseFloat(this.value))"></div>
+                            <div><label>${I18n.t('audio.labelFadeIn')}</label><input type="number" step="0.1" min="0" value="${track.fadeInDuration}" onchange="updateFade('${track.id}','fadeInDuration',parseFloat(this.value))"></div>
+                            <div><label>${I18n.t('audio.labelFadeOut')}</label><input type="number" step="0.1" min="0" value="${track.fadeOutDuration}" onchange="updateFade('${track.id}','fadeOutDuration',parseFloat(this.value))"></div>
+                            <div><label>${I18n.t('audio.labelOffset')}</label><input type="number" step="0.1" min="0" value="${(track.offset||0).toFixed(2)}" onchange="updateOffset('${track.id}',parseFloat(this.value))"></div>
+                            <div><label>${I18n.t('audio.labelVolume')}</label><input type="range" min="0" max="200" value="${track.volume*100}" oninput="updateTrack('${track.id}','volume',this.value/100);this.nextElementSibling.textContent=this.value+'%'"><span class="vol-display">${Math.round(track.volume*100)}%</span></div>
+                            <div style="display:flex;align-items:end;padding-bottom:2px;"><label style="margin:0;cursor:pointer;"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)"> ${I18n.t('audio.muteInMix')}</label></div>
                         </div>
                         <div class="action-buttons">
-                            <button class="mac-btn" onclick="toggleTrack('${track.id}')">&#9654; Play w/ Fades</button>
-                            <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; Trim</button>
-                            <button class="mac-btn mac-btn-danger" onclick="deleteTrack('${track.id}')">&#9003; Delete</button>
+                            <button class="mac-btn" onclick="toggleTrack('${track.id}')">&#9654; ${I18n.t('audio.playWFades')}</button>
+                            <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; ${I18n.t('audio.trim')}</button>
+                            <button class="mac-btn mac-btn-danger" onclick="deleteTrack('${track.id}')">&#9003; ${I18n.t('audio.delete')}</button>
                         </div>
-                        <div class="info-text">Thick lines = trim boundaries &nbsp;|&nbsp; Thin lines = fade start/end</div>
+                        <div class="info-text">${I18n.t('audio.infoThickLines')}</div>
                     </div>
                 `;
                 container.appendChild(div);
@@ -1243,7 +1245,7 @@
         }
 
         function deleteTrack(id) {
-            if (confirm('Delete this track?')) {
+            if (confirm(I18n.t('audio.deleteTrackConfirm'))) {
                 stopTrack(id);
                 tracks = tracks.filter(t => t.id !== id);
                 renderTracks();
@@ -1261,7 +1263,7 @@
             const startTime = audioContext.currentTime + 0.1;
             mixPlayer.startTime = startTime;
             mixPlayer.isPlaying = true;
-            document.getElementById('mix-play-btn').innerHTML = '&#10074;&#10074; Pause';
+            document.getElementById('mix-play-btn').innerHTML = '&#10074;&#10074; ' + I18n.t('audio.pauseMix');
 
             const maxDur = getMixDuration();
 
@@ -1303,7 +1305,7 @@
             mixPlayer.sources = [];
             mixPlayer.isPlaying = false;
             if (mixPlayer.raf) cancelAnimationFrame(mixPlayer.raf);
-            document.getElementById('mix-play-btn').innerHTML = '&#9654; Play Mix';
+            document.getElementById('mix-play-btn').innerHTML = '&#9654; ' + I18n.t('audio.playMix');
             document.getElementById('mix-progress-bar').style.width = '0%';
             renderGlobalTimeline();
         }
@@ -1327,11 +1329,11 @@
         }
 
         async function downloadMix() {
-            if (tracks.length === 0) return alert('No tracks loaded');
+            if (tracks.length === 0) return alert(I18n.t('audio.alertNoTracks'));
             initAudioContext();
 
             const maxDur = getMixDuration();
-            if (maxDur === 0) return alert('No active tracks');
+            if (maxDur === 0) return alert(I18n.t('audio.alertNoActiveTracks'));
 
             const offline = new OfflineAudioContext(2, Math.ceil(maxDur * audioContext.sampleRate), audioContext.sampleRate);
 
@@ -1405,7 +1407,28 @@
             return new Blob([arrayBuffer], {type: 'audio/wav'});
         }
 
-        window.onload = () => {
+        function refreshAudioI18n() {
+            document.title = I18n.t('audio.pageTitle');
+            I18n.applyTo(document.body);
+            if (tracks.length) renderTracks();
+            renderGlobalTimeline();
+            const mixBtn = document.getElementById('mix-play-btn');
+            if (mixBtn && mixPlayer.isPlaying) {
+                mixBtn.innerHTML = '&#10074;&#10074; ' + I18n.t('audio.pauseMix');
+            } else if (mixBtn) {
+                mixBtn.innerHTML = '&#9654; ' + I18n.t('audio.playMix');
+            }
+        }
+
+        window.onload = async () => {
+            await I18n.init();
+            refreshAudioI18n();
+            window.addEventListener('message', (e) => {
+                const d = e.data;
+                if (!d || d.type !== I18n.MSG_TYPE) return;
+                if (d.lang !== 'en' && d.lang !== 'ru') return;
+                I18n.setLang(d.lang).then(refreshAudioI18n);
+            });
             setupDragAndDrop();
         };
     </script>

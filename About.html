@@ -1,146 +1,323 @@
 <!DOCTYPE html>
+
 <html lang="en">
+
 <head>
+
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
+
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
     <title>About Indie Toolbox</title>
+
     <link rel="stylesheet" href="dither-ui.css">
+
     <style>
+
         @font-face {
+
             font-family: 'Chicago';
+
             src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2');
+
             font-weight: normal;
+
             font-style: normal;
+
         }
+
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
 
+
+
         body {
+
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+
             font-size: 13px;
+
             background: #fff;
+
             color: #000;
+
             display: flex;
+
             flex-direction: column;
+
             height: 100vh;
+
             overflow: hidden;
+
             padding: 20px 28px 20px;
+
             -webkit-font-smoothing: none;
+
             -moz-osx-font-smoothing: none;
+
             user-select: none;
+
         }
+
+
 
         ::selection { background: #000; color: #fff; }
 
+
+
         .header {
+
             text-align: center;
+
             margin-bottom: 14px;
+
             flex-shrink: 0;
+
         }
+
+
 
         .app-name {
+
             font-size: 22px;
+
             font-weight: bold;
+
             letter-spacing: 1px;
+
         }
+
+
 
         .version {
+
             font-size: 11px;
+
             color: #666;
+
             margin-top: 2px;
+
         }
+
+
 
         .divider {
+
             width: 100%;
+
             height: 2px;
+
             background: repeating-linear-gradient(to right, #000 0px, #000 2px, transparent 2px, transparent 4px);
+
             margin-bottom: 14px;
+
             flex-shrink: 0;
+
         }
+
+
 
         .description {
+
             font-size: 12px;
+
             line-height: 1.6;
+
             text-align: left;
+
             color: #222;
+
             flex-shrink: 0;
+
         }
+
+
 
         .footer {
+
             flex-shrink: 0;
+
             display: flex;
+
             flex-direction: column;
+
             align-items: center;
+
             gap: 8px;
+
             margin-top: 24px;
+
         }
+
+
 
         .twitter-link {
+
             display: flex;
+
             flex-direction: column;
+
             align-items: center;
+
             gap: 3px;
+
             text-decoration: none;
+
             color: #000;
+
         }
+
         .twitter-link:hover .x-logo { opacity: 0.6; }
 
+
+
         .x-logo {
+
             width: 40px;
+
             height: 40px;
+
             object-fit: contain;
+
             image-rendering: auto;
+
         }
+
+
 
         .twitter-name {
+
             font-size: 11px;
+
             color: #666;
+
         }
+
+
 
         .dont-show {
+
             display: flex;
+
             align-items: center;
+
             gap: 5px;
+
             font-size: 11px;
+
             color: #666;
+
             cursor: pointer;
+
         }
+
     </style>
+
 </head>
+
 <body>
+
     <div class="header">
-        <div class="app-name">Indie Toolbox</div>
-        <div class="version">Version b0.1</div>
+
+        <div class="app-name" data-i18n="about.appName">Indie Toolbox</div>
+
+        <div class="version" data-i18n="about.version">Version b0.1</div>
+
     </div>
+
     <div class="divider"></div>
-    <div class="description">
+
+    <div class="description" data-i18n="about.description">
+
         Indie Toolbox is a collection of everyday tools to help indie developers — and beyond — tackle their small daily tasks. No more hunting for software, installing apps, or relying on online services just to crop an image or mix some audio. I've gathered here, and will keep gathering, the tools I find missing in my own workflow. Best of luck with your products. May the Force and patience be with you, and return to you as the good fortune you deserve.
+
     </div>
+
     <div class="footer">
+
         <a class="twitter-link" href="https://oxygenchick.github.io/personal-page/" target="_blank" rel="noopener noreferrer">
-            <img class="x-logo" src="assets/Logo_2.png" alt="Logo">
-            <span class="twitter-name">Oxygen Chick</span>
+
+            <img class="x-logo" src="assets/Logo_2.png" data-i18n-alt="about.logoAlt" alt="">
+
+            <span class="twitter-name" data-i18n="about.authorName">Oxygen Chick</span>
+
         </a>
+
         <label class="dont-show">
+
             <input type="checkbox" id="dont-show-check" onchange="toggleDontShow(this.checked)">
-            Don't show on start
+
+            <span data-i18n="about.dontShow">Don't show on start</span>
+
         </label>
+
     </div>
+
+    <script src="i18n.js"></script>
+
     <script>
+
+    (async function () {
+
+        await I18n.init();
+
+        document.title = I18n.t('about.pageTitle');
+
+        window.addEventListener('message', function (e) {
+
+            if (!e.data || e.data.type !== I18n.MSG_TYPE) return;
+
+            if (e.data.lang !== 'en' && e.data.lang !== 'ru') return;
+
+            I18n.setLang(e.data.lang).then(function () {
+
+                I18n.applyTo(document.body);
+
+                document.title = I18n.t('about.pageTitle');
+
+            });
+
+        });
+
+    })();
+
+    </script>
+
+    <script>
+
         const STORAGE_KEY = 'indietoolbox_hide_about';
 
+
+
         if (localStorage.getItem(STORAGE_KEY) === '1') {
+
             document.getElementById('dont-show-check').checked = true;
+
         }
 
+
+
         function toggleDontShow(checked) {
+
             if (checked) {
+
                 localStorage.setItem(STORAGE_KEY, '1');
+
             } else {
+
                 localStorage.removeItem(STORAGE_KEY);
+
             }
+
         }
+
     </script>
+
 </body>
+
 </html>
+

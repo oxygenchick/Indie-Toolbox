@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Indie Toolbox</title>
     <script>
@@ -94,12 +95,37 @@
             background: #000;
             color: #fff;
         }
-        .menu-bar .clock {
+        .menu-bar-right {
             margin-left: auto;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .menu-bar .clock {
             font-weight: bold;
             font-size: 12px;
-            padding-right: 4px;
+            padding-right: 2px;
             flex-shrink: 0;
+        }
+        .lang-btn {
+            padding: 1px 7px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            border: 1px solid transparent;
+            background: transparent;
+            font-family: inherit;
+            color: #000;
+        }
+        .lang-btn:hover {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .lang-btn.active {
+            background: #000;
+            color: #fff;
         }
 
         .desktop {
@@ -329,10 +355,15 @@
 <body>
 
     <div class="menu-bar">
-        <img class="logo" src="logo.png" alt="IndieOS" onclick="openApp('about')" style="cursor:pointer">
+        <img class="logo" src="logo.png" data-i18n-alt="shell.logoAlt" alt="" onclick="openApp('about')" style="cursor:pointer">
         <div class="separator"></div>
         <div class="taskbar-items" id="taskbar-items"></div>
-        <span class="clock" id="menu-clock"></span>
+        <div class="menu-bar-right">
+            <button type="button" class="lang-btn" id="lang-en" data-lang="en" data-i18n="shell.langEn">EN</button>
+            <button type="button" class="lang-btn" id="lang-ru" data-lang="ru" data-i18n="shell.langRu">RU</button>
+            <div class="separator"></div>
+            <span class="clock" id="menu-clock"></span>
+        </div>
     </div>
 
     <div class="desktop" id="desktop">
@@ -347,7 +378,7 @@
                     <rect x="16" y="36" width="16" height="4" fill="#000"/>
                     <circle cx="24" cy="38" r="1.5" fill="#fff"/>
                 </svg>
-                <div class="icon-label">Audio Mixer</div>
+                <div class="icon-label" data-i18n="shell.iconAudio">Audio Mixer</div>
             </div>
 
             <div class="desktop-icon" onclick="openApp('image')">
@@ -359,7 +390,7 @@
                     <polyline points="8,36 18,22 26,32 30,26 40,36" fill="none" stroke="#000" stroke-width="1.5"/>
                     <rect x="8" y="36" width="32" height="4" fill="#fff" stroke="#000" stroke-width="1"/>
                 </svg>
-                <div class="icon-label">Image Editor</div>
+                <div class="icon-label" data-i18n="shell.iconImage">Image Editor</div>
             </div>
 
             <div class="desktop-icon" onclick="openApp('video')">
@@ -372,7 +403,7 @@
                     <rect x="4" y="34" width="6" height="6" fill="#fff" stroke="#000" stroke-width="1"/>
                     <rect x="38" y="34" width="6" height="6" fill="#fff" stroke="#000" stroke-width="1"/>
                 </svg>
-                <div class="icon-label">Video Editor</div>
+                <div class="icon-label" data-i18n="shell.iconVideo">Video Editor</div>
             </div>
         </div>
 
@@ -400,12 +431,14 @@
                     <line x1="10" y1="24" x2="6" y2="24" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
                     <line x1="13.8" y1="13.8" x2="11" y2="11" stroke="#000" stroke-width="2.2" stroke-linecap="round"/>
                 </svg>
-                <div class="icon-label">Journey Book</div>
+                <div class="icon-label" data-i18n="shell.iconJourney">Journey Book</div>
             </div>
         </div>
     </div>
 
+    <script src="i18n.js"></script>
     <script>
+    (async function () {
         const desktop = document.getElementById('desktop');
         const menuClock = document.getElementById('menu-clock');
 
@@ -442,12 +475,60 @@
         }
 
         const appConfig = {
-            audio: { title: 'Audio Mixer', src: 'AudioEditor.html', w: 1050, h: 650 },
-            image: { title: 'Image Editor', src: 'ImageConverter.html', w: 950, h: 700 },
-            tasks: { title: 'Journey Book', src: 'Tasks.html', w: 700, h: 600 },
-            video: { title: 'Video Editor', src: 'VideoEditor.html', w: 900, h: 650 },
-            about: { title: 'About', src: 'About.html', w: 440, h: 400, noResize: true, noMaximize: true, centered: true }
+            audio: { titleKey: 'app.titleAudio', src: 'AudioEditor.html', w: 1050, h: 650 },
+            image: { titleKey: 'app.titleImage', src: 'ImageConverter.html', w: 950, h: 700 },
+            tasks: { titleKey: 'app.titleTasks', src: 'Tasks.html', w: 700, h: 600 },
+            video: { titleKey: 'app.titleVideo', src: 'VideoEditor.html', w: 900, h: 650 },
+            about: { titleKey: 'app.titleAbout', src: 'About.html', w: 440, h: 400, noResize: true, noMaximize: true, centered: true }
         };
+
+        function appTitle(appId) {
+            const cfg = appConfig[appId];
+            return cfg ? I18n.t(cfg.titleKey) : '';
+        }
+
+        function broadcastLangToIframes(lang) {
+            document.querySelectorAll('.app-body iframe').forEach((f) => {
+                try {
+                    f.contentWindow.postMessage({ type: I18n.MSG_TYPE, lang }, '*');
+                } catch (e) { /* ignore */ }
+            });
+        }
+
+        function syncLangButtons() {
+            const l = I18n.getLang();
+            const en = document.getElementById('lang-en');
+            const ru = document.getElementById('lang-ru');
+            if (en) en.classList.toggle('active', l === 'en');
+            if (ru) ru.classList.toggle('active', l === 'ru');
+        }
+
+        function refreshShellI18n() {
+            I18n.applyTo(document.body);
+            document.title = I18n.t('shell.pageTitle');
+            for (const id in windows) {
+                const el = windows[id].querySelector('.app-title-text');
+                if (el) el.textContent = appTitle(id);
+            }
+            renderTaskbar();
+            syncLangButtons();
+            broadcastLangToIframes(I18n.getLang());
+        }
+
+        function setupLangSwitcher() {
+            const en = document.getElementById('lang-en');
+            const ru = document.getElementById('lang-ru');
+            if (en) {
+                en.addEventListener('click', () => {
+                    I18n.setLang('en').then(refreshShellI18n);
+                });
+            }
+            if (ru) {
+                ru.addEventListener('click', () => {
+                    I18n.setLang('ru').then(refreshShellI18n);
+                });
+            }
+        }
 
         function openApp(appId) {
             if (windows[appId]) {
@@ -490,7 +571,7 @@
                         ${maximizeBtn}
                     </div>
                     <div class="app-title-bar-lines"></div>
-                    <div class="app-title-text">${cfg.title}</div>
+                    <div class="app-title-text">${appTitle(appId)}</div>
                 </div>
                 <div class="app-body">
                     <iframe src="${cfg.src}"></iframe>
@@ -528,6 +609,8 @@
 
             renderTaskbar();
         }
+
+        window.openApp = openApp;
 
         function closeApp(appId) {
             if (!windows[appId]) return;
@@ -591,7 +674,7 @@
                 const item = document.createElement('span');
                 item.className = 'taskbar-item';
                 item.dataset.app = id;
-                item.textContent = appConfig[id].title;
+                item.textContent = appTitle(id);
                 item.addEventListener('click', () => bringToFront(id));
                 container.appendChild(item);
             }
@@ -688,9 +771,15 @@
         updateClock();
         setInterval(updateClock, 30000);
 
+        await I18n.init();
+        setupLangSwitcher();
+        syncLangButtons();
+        document.title = I18n.t('shell.pageTitle');
+
         if (localStorage.getItem('indietoolbox_hide_about') !== '1') {
             openApp('about');
         }
+    })();
     </script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Indie Toolbox</title>
     <link rel="stylesheet" href="dither-ui.css">
@@ -133,20 +134,27 @@
 <body>
     <main class="sheet">
         <div class="header">
-            <div class="app-name">Indie Toolbox</div>
-            <div class="version">Version b0.1</div>
+            <div class="app-name" data-i18n="mobile.appName">Indie Toolbox</div>
+            <div class="version" data-i18n="mobile.version">Version b0.1</div>
         </div>
         <div class="divider"></div>
-        <div class="description">
+        <div class="description" data-i18n="mobile.description">
             Indie Toolbox is a collection of everyday tools to help indie developers — and beyond — tackle their small daily tasks. No more hunting for software, installing apps, or relying on online services just to crop an image or mix some audio. I've gathered here, and will keep gathering, the tools I find missing in my own workflow. Best of luck with your products. May the Force and patience be with you, and return to you as the good fortune you deserve.
         </div>
         <div class="footer">
             <a class="author-link" href="https://oxygenchick.github.io/personal-page/" target="_blank" rel="noopener noreferrer">
-                <img class="author-logo" src="assets/Logo_2.png" alt="Oxygen Chick">
-                <span class="author-name">Oxygen Chick</span>
+                <img class="author-logo" src="assets/Logo_2.png" data-i18n-alt="mobile.logoAlt" alt="">
+                <span class="author-name" data-i18n="mobile.authorName">Oxygen Chick</span>
             </a>
         </div>
-        <p class="warning-en">Not available on phones and tablets yet. Please use a desktop browser.</p>
+        <p class="warning-en" data-i18n="mobile.warning">Not available on phones and tablets yet. Please use a desktop browser.</p>
     </main>
+    <script src="i18n.js"></script>
+    <script>
+    (async function () {
+        await I18n.init();
+        document.title = I18n.t('mobile.pageTitle');
+    })();
+    </script>
 </body>
 </html>

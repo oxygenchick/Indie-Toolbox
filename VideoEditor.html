@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Video Editor</title>
     <link rel="stylesheet" href="dither-ui.css">
@@ -445,13 +446,13 @@
     <div class="mac-window" id="upload-window">
         <div class="title-bar">
             <div class="title-bar-lines"></div>
-            <div class="title-bar-text">Upload</div>
+            <div class="title-bar-text" data-i18n="video.uploadBar">Upload</div>
         </div>
         <div class="window-content">
             <div class="upload-area" id="upload-area">
                 <span class="upload-icon">&#9654;</span>
-                <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">Drop video here</div>
-                <div style="font-size:12px;color:#666;">…or click to select a file</div>
+                <div style="font-weight:bold;font-size:14px;margin-bottom:4px;" data-i18n="video.dropHere">Drop video here</div>
+                <div style="font-size:12px;color:#666;" data-i18n="video.dropHint">…or click to select a file</div>
             </div>
         </div>
     </div>
@@ -468,7 +469,7 @@
             <div class="preview-wrap" id="preview-wrap">
                 <video id="video" preload="metadata"></video>
                 <div class="progress-overlay" id="progress" style="display:none">
-                    <div>Processing…</div>
+                    <div id="progress-processing" data-i18n="video.processing">Processing…</div>
                     <div class="bar-bg"><div class="bar-fill" id="progress-bar"></div></div>
                     <div id="progress-text">0%</div>
                 </div>
@@ -477,7 +478,7 @@
             <div class="timeline-bar">
                 <div class="timeline-row">
                     <span class="timeline-time" id="time-current">0:00</span>
-                    <span class="timeline-info-text">Drag the thick trim lines or the middle band · click elsewhere to seek</span>
+                    <span class="timeline-info-text" data-i18n="video.timelineHint">Drag the thick trim lines or the middle band · click elsewhere to seek</span>
                     <span class="timeline-time timeline-time--muted" id="time-total">0:00</span>
                 </div>
                 <div class="timeline-track-wrap">
@@ -494,27 +495,27 @@
                 <button class="mac-btn" id="btn-play" onclick="togglePlay()">&#9654; Play</button>
                 <div class="chk-row" style="margin-left:8px">
                     <input type="checkbox" id="chk-audio" checked onchange="toggleAudio()">
-                    <label for="chk-audio">Keep audio</label>
+                    <label for="chk-audio" data-i18n="video.keepAudio">Keep audio</label>
                 </div>
-                <button class="mac-btn" onclick="resetSession()" style="margin-left:auto">&#8634; Reset</button>
-                <button class="mac-btn" onclick="exportVideo()">&#8615; Save</button>
+                <button class="mac-btn" onclick="resetSession()" style="margin-left:auto">&#8634; <span data-i18n="video.reset">Reset</span></button>
+                <button class="mac-btn" onclick="exportVideo()">&#8615; <span data-i18n="video.save">Save</span></button>
             </div>
 
             <div class="trim-bar">
-                <label>In / Out (sec):</label>
-                <input class="trim-input" id="trim-start" type="text" value="0.00" onchange="onTrimInput()" title="Trim start (seconds)">
+                <label data-i18n="video.labelInOut">In / Out (sec):</label>
+                <input class="trim-input" id="trim-start" type="text" value="0.00" onchange="onTrimInput()" data-i18n-title="video.trimStartTitle" title="Trim start (seconds)">
                 <span class="trim-sep">&#8594;</span>
-                <input class="trim-input" id="trim-end" type="text" value="0.00" onchange="onTrimInput()" title="Trim end (seconds)">
+                <input class="trim-input" id="trim-end" type="text" value="0.00" onchange="onTrimInput()" data-i18n-title="video.trimEndTitle" title="Trim end (seconds)">
                 <span id="trim-duration" style="color:#555"></span>
             </div>
 
             <div class="resize-bar">
-                <label>Size:</label>
+                <label data-i18n="video.labelSize">Size:</label>
                 <input class="resize-input" id="resize-w" type="number" onchange="onResizeW()">
                 <span>&#215;</span>
                 <input class="resize-input" id="resize-h" type="number" onchange="onResizeH()">
-                <span class="resize-lock" id="lock-ratio" onclick="toggleLock()" title="Lock aspect ratio">[=]</span>
-                <button class="mac-btn" onclick="resetSize()" style="font-size:11px;padding:3px 10px">Original</button>
+                <span class="resize-lock" id="lock-ratio" onclick="toggleLock()" data-i18n-title="video.lockRatio" title="Lock aspect ratio">[=]</span>
+                <button class="mac-btn" onclick="resetSize()" style="font-size:11px;padding:3px 10px"><span data-i18n="video.original">Original</span></button>
             </div>
 
             <div class="info-row" id="info-row"></div>
@@ -522,11 +523,12 @@
     </div>
 </div>
 
+<script src="i18n.js"></script>
 <script type="module">
     import { FFmpeg } from './vendor/ffmpeg-esm/index.js';
     import { toBlobURL } from 'https://unpkg.com/@ffmpeg/util@0.12.1/dist/esm/index.js';
 
-    let ffmpegProgressLabel = 'Working';
+    let ffmpegProgressLabelKey = 'video.loadingFFmpegEllipsis';
 
     const video = document.getElementById('video');
     const timelineTrack = document.getElementById('timeline-track');
@@ -589,6 +591,16 @@
         progressText.textContent = text;
         progressBar.style.width = (pct || 0) + '%';
     }
+
+    function syncVideoPlayButton() {
+        const btn = document.getElementById('btn-play');
+        if (!btn) return;
+        if (!video.paused) {
+            btn.innerHTML = '&#10074;&#10074; ' + I18n.t('video.pause');
+        } else {
+            btn.innerHTML = '&#9654; ' + I18n.t('video.play');
+        }
+    }
     function hideProgress() { progressEl.style.display = 'none'; }
 
     async function readBlobAsUint8Array(blob) {
@@ -635,7 +647,7 @@
         video.onerror = () => {
             URL.revokeObjectURL(url);
             originalFile = null;
-            alert('This video format can’t be played in the browser. Use an MP4 (H.264) or WebM file, or convert it outside this app first.');
+            alert(I18n.t('video.alertFormat'));
         };
 
         video.onloadedmetadata = () => {
@@ -660,7 +672,7 @@
         syncTrimUI();
         updateInfo();
 
-        document.getElementById('editor-title').textContent = originalFile ? originalFile.name : 'Video Editor';
+        document.getElementById('editor-title').textContent = originalFile ? originalFile.name : I18n.t('video.editorTitle');
         document.getElementById('editor-window').classList.add('is-open');
         hideProgress();
     }
@@ -670,10 +682,10 @@
         ffmpeg = new FFmpeg();
         ffmpeg.on('progress', ({ progress }) => {
             const pct = Math.max(0, Math.min(100, Math.round(progress * 100)));
-            showProgress(`${ffmpegProgressLabel}: ${pct}%`, pct);
+            showProgress(I18n.t(ffmpegProgressLabelKey) + ': ' + pct + '%', pct);
         });
-        ffmpegProgressLabel = 'Loading FFmpeg';
-        showProgress('Loading FFmpeg…', 0);
+        ffmpegProgressLabelKey = 'video.loadingFFmpegEllipsis';
+        showProgress(I18n.t('video.loadingFFmpegEllipsis'), 0);
         const baseURL = 'https://unpkg.com/@ffmpeg/core@0.12.6/dist/esm';
         await ffmpeg.load({
             coreURL: await toBlobURL(`${baseURL}/ffmpeg-core.js`, 'text/javascript'),
@@ -757,7 +769,7 @@
             video.pause();
             video.currentTime = trimEnd;
             stoppedAtTrimEnd = true;
-            document.getElementById('btn-play').innerHTML = '&#9654; Play';
+            syncVideoPlayButton();
             setPlayheadPercentFromTime();
             document.getElementById('time-current').textContent = formatTime(trimEnd);
             playheadRaf = null;
@@ -792,7 +804,7 @@
         stoppedAtTrimEnd = false;
         stopPlayheadRaf();
         video.pause();
-        document.getElementById('btn-play').innerHTML = '&#9654; Play';
+        syncVideoPlayButton();
         video.currentTime = t;
         document.getElementById('time-current').textContent = formatTime(t);
         layoutTimeline();
@@ -899,10 +911,12 @@
     });
 
     video.addEventListener('play', () => {
+        syncVideoPlayButton();
         startPlayheadRaf();
     });
 
     video.addEventListener('pause', () => {
+        syncVideoPlayButton();
         stopPlayheadRaf();
         if (video.currentTime > trimEnd) video.currentTime = trimEnd;
         updatePlayheadOnly();
@@ -917,17 +931,15 @@
     window.addEventListener('resize', () => layoutTimeline());
 
     function togglePlay() {
-        const btn = document.getElementById('btn-play');
         if (video.paused) {
             if (video.currentTime < trimStart) video.currentTime = trimStart;
             if (stoppedAtTrimEnd || video.currentTime >= trimEnd - TRIM_END_EPS) video.currentTime = trimStart;
             stoppedAtTrimEnd = false;
             video.play();
-            btn.innerHTML = '&#10074;&#10074; Pause';
         } else {
             video.pause();
-            btn.innerHTML = '&#9654; Play';
         }
+        syncVideoPlayButton();
     }
 
     function onTrimInput() {
@@ -1004,8 +1016,8 @@
         originalW = 0;
         originalH = 0;
         document.getElementById('editor-window').classList.remove('is-open');
-        document.getElementById('editor-title').textContent = 'Video Editor';
-        document.getElementById('btn-play').innerHTML = '&#9654; Play';
+        document.getElementById('editor-title').textContent = I18n.t('video.editorTitle');
+        syncVideoPlayButton();
         hideProgress();
     }
 
@@ -1013,18 +1025,19 @@
         const bar = document.getElementById('info-row');
         const size = originalFile ? (originalFile.size / 1024 / 1024).toFixed(1) + ' MB' : '—';
         const ext = originalFile ? originalFile.name.split('.').pop().toUpperCase() : '—';
+        const dash = '\u2014';
         bar.innerHTML = `
-            <span><span class="label">File:</span> <b>${originalFile ? originalFile.name : '—'}</b></span>
-            <span><span class="label">Size:</span> <b>${size}</b></span>
-            <span><span class="label">Format:</span> <b>${ext}</b></span>
-            <span><span class="label">Resolution:</span> <b>${originalW}&#215;${originalH}</b></span>
-            <span><span class="label">Duration:</span> <b>${formatTime(video.duration)}</b></span>
+            <span><span class="label">${I18n.t('video.labelFile')}</span> <b>${originalFile ? originalFile.name : dash}</b></span>
+            <span><span class="label">${I18n.t('video.labelSizeInfo')}</span> <b>${size}</b></span>
+            <span><span class="label">${I18n.t('video.labelFormat')}</span> <b>${ext}</b></span>
+            <span><span class="label">${I18n.t('video.labelResolution')}</span> <b>${originalW}&#215;${originalH}</b></span>
+            <span><span class="label">${I18n.t('video.labelDuration')}</span> <b>${formatTime(video.duration)}</b></span>
         `;
     }
 
     async function exportVideo() {
         if (!originalFile) {
-            alert('No video loaded.');
+            alert(I18n.t('video.alertNoVideo'));
             return;
         }
 
@@ -1034,7 +1047,7 @@
         const start = Math.max(0, trimStart);
         const end = Math.min(video.duration || trimEnd, trimEnd);
         if (!(end > start)) {
-            alert('Trim end must be greater than trim start.');
+            alert(I18n.t('video.alertTrimOrder'));
             return;
         }
         const duration = end - start;
@@ -1045,7 +1058,7 @@
             try {
                 saveHandle = await window.showSaveFilePicker({
                     suggestedName: baseName + '.mp4',
-                    types: [{ description: 'MP4 Video', accept: { 'video/mp4': ['.mp4'] } }]
+                    types: [{ description: I18n.t('video.mp4Video'), accept: { 'video/mp4': ['.mp4'] } }]
                 });
             } catch (e) {
                 if (e.name === 'AbortError') return;
@@ -1054,19 +1067,19 @@
 
         try {
             const ff = await loadFFmpeg();
-            ffmpegProgressLabel = 'Exporting';
+            ffmpegProgressLabelKey = 'video.exporting';
 
             let bytes;
             try {
                 bytes = await readVideoBytesForExport();
             } catch (readErr) {
                 console.error(readErr);
-                alert('Could not read the video data. Try reloading the file (pick it again or drag it onto the window).');
+                alert(I18n.t('video.alertReadFail'));
                 hideProgress();
                 return;
             }
             if (!bytes || !bytes.byteLength) {
-                alert('The video data appears empty. Try choosing the file again.');
+                alert(I18n.t('video.alertEmpty'));
                 hideProgress();
                 return;
             }
@@ -1074,7 +1087,7 @@
             try { await ff.deleteFile('input'); } catch (_) {}
             try { await ff.deleteFile('output.mp4'); } catch (_) {}
 
-            showProgress('Reading file…', 5);
+            showProgress(I18n.t('video.readingFile'), 5);
             await ff.writeFile('input', bytes);
 
             const args = [
@@ -1099,7 +1112,7 @@
                 data = await ff.readFile('output.mp4');
             } catch (readOutErr) {
                 console.error(readOutErr);
-                alert('Export failed: output file was not created. The clip may be too long or the file too large for the browser.');
+                alert(I18n.t('video.alertExportNotCreated'));
                 try { await ff.deleteFile('input'); } catch (_) {}
                 try { await ff.deleteFile('output.mp4'); } catch (_) {}
                 hideProgress();
@@ -1110,7 +1123,7 @@
             try { await ff.deleteFile('output.mp4'); } catch (_) {}
 
             if (!data || !data.byteLength) {
-                alert('Export produced an empty file. Try a shorter clip or lower resolution.');
+                alert(I18n.t('video.alertExportEmpty'));
                 hideProgress();
                 return;
             }
@@ -1131,10 +1144,35 @@
         } catch (e) {
             console.error('Export failed:', e);
             const msg = (e && e.message) ? e.message : String(e);
-            alert('Export failed: ' + msg);
+            alert(I18n.t('video.alertExportPrefix') + msg);
         }
         hideProgress();
     }
+
+    async function bootVideoI18n() {
+        await I18n.init();
+        I18n.applyTo(document.body);
+        document.title = I18n.t('video.pageTitle');
+        const et = document.getElementById('editor-title');
+        if (et && !originalFile) et.textContent = I18n.t('video.editorTitle');
+        syncVideoPlayButton();
+        window.addEventListener('message', (e) => {
+            const d = e.data;
+            if (!d || d.type !== I18n.MSG_TYPE) return;
+            if (d.lang !== 'en' && d.lang !== 'ru') return;
+            I18n.setLang(d.lang).then(() => {
+                I18n.applyTo(document.body);
+                document.title = I18n.t('video.pageTitle');
+                const titleEl = document.getElementById('editor-title');
+                if (titleEl) {
+                    titleEl.textContent = originalFile ? originalFile.name : I18n.t('video.editorTitle');
+                }
+                updateInfo();
+                syncVideoPlayButton();
+            });
+        });
+    }
+    bootVideoI18n();
 </script>
 </body>
 </html>

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Journey Book</title>
     <link rel="stylesheet" href="dither-ui.css">
@@ -445,21 +446,6 @@
             text-decoration: none;
         }
         .tab.active:hover { text-decoration: none; }
-        .tab-rename-input {
-            font-family: inherit;
-            font-size: inherit;
-            font-weight: bold;
-            width: 100%;
-            min-width: 3em;
-            max-width: 160px;
-            border: 2px inset #888;
-            padding: 1px 4px;
-            background: #fff;
-            color: #000;
-            box-sizing: border-box;
-            outline: none;
-        }
-        .tab-rename-input:focus { border-color: #000; }
 
         #app-screen {
             flex: 1;
@@ -868,31 +854,31 @@
     <div class="mac-window">
         <div class="title-bar">
             <div class="title-bar-lines" aria-hidden="true"></div>
-            <div class="title-bar-text" id="title-bar-section">Link a file</div>
+            <div class="title-bar-text" id="title-bar-section" data-i18n="tasks.titleBarLinkFile">Link a file</div>
         </div>
 
         <div id="setup-screen" class="setup-screen">
             <div id="quick-connect" style="display:none;margin-bottom:16px">
                 <div class="setup-buttons">
-                    <button class="mac-btn" onclick="reconnectFile()" style="border-width:3px">&#9741; Connect <span id="quick-connect-name"></span></button>
+                    <button class="mac-btn" onclick="reconnectFile()" style="border-width:3px">&#9741; <span data-i18n="tasks.connect">Connect</span> <span id="quick-connect-name"></span></button>
                 </div>
                 <div style="border-bottom:1px solid #000;margin:20px 20px 0;opacity:0.35"></div>
             </div>
-            <div class="setup-title">Link a file</div>
-            <div class="setup-text">
+            <div class="setup-title" data-i18n="tasks.setupTitle">Link a file</div>
+            <div class="setup-text" data-i18n-html="tasks.setupText">
                 Your companion on the long voyage of making a game: tasks, Gantt, goals, journal, and notes in one <b>.json</b> file. Create new or open an existing file (including <code>tasks.json</code> / <code>logbook.json</code>).
             </div>
             <div class="setup-buttons">
-                <button class="mac-btn" onclick="createFile()">&#10010; Create New File</button>
-                <button class="mac-btn" onclick="linkFile()">&#9741; Open Existing File</button>
+                <button class="mac-btn" onclick="createFile()">&#10010; <span data-i18n="tasks.createNewFile">Create New File</span></button>
+                <button class="mac-btn" onclick="linkFile()">&#9741; <span data-i18n="tasks.openExisting">Open Existing File</span></button>
             </div>
         </div>
 
         <div id="app-screen" style="display:none">
             <div class="file-bar">
-                <button class="mac-btn" onclick="linkFile()">&#9741; Open File</button>
-                <button class="mac-btn" onclick="createFile()">&#10010; New File</button>
-                <span class="file-status" id="file-status">No file linked</span>
+                <button class="mac-btn" onclick="linkFile()">&#9741; <span data-i18n="tasks.openFile">Open File</span></button>
+                <button class="mac-btn" onclick="createFile()">&#10010; <span data-i18n="tasks.newFile">New File</span></button>
+                <span class="file-status" id="file-status" data-i18n="tasks.noFileLinked">No file linked</span>
             </div>
 
             <div class="tab-bar">
@@ -905,23 +891,23 @@
 
             <div id="panel-tasks" class="tab-panel active">
                 <div class="pomo-bar">
-                    <label>Pomodoro:</label>
-                    <input type="number" id="pomo-duration" min="1" max="120" value="25" onchange="pomoDuration=parseInt(this.value)||25"> min
+                    <label data-i18n="tasks.pomodoro">Pomodoro:</label>
+                    <input type="number" id="pomo-duration" min="1" max="120" value="25" onchange="pomoDuration=parseInt(this.value)||25"><span data-i18n="tasks.minuteAbbr"> min</span>
                     <div class="pomo-bar-tail">
                         <span class="pomo-global-timer" id="pomo-global-timer"></span>
-                        <span class="panel-hint">Don't forget to rest — breaks are part of the work.</span>
+                        <span class="panel-hint" data-i18n="tasks.pomodoroHint">Don't forget to rest — breaks are part of the work.</span>
                     </div>
                 </div>
 
                 <div class="add-row">
-                    <input class="add-input" id="add-input" type="text" placeholder="New task..." onkeydown="if(event.key==='Enter')addTask()">
-                    <button class="mac-btn" onclick="addTask()">&#10010; Add</button>
+                    <input class="add-input" id="add-input" type="text" data-i18n-placeholder="tasks.newTaskPlaceholder" placeholder="New task..." onkeydown="if(event.key==='Enter')addTask()">
+                    <button class="mac-btn" onclick="addTask()">&#10010; <span data-i18n="tasks.add">Add</span></button>
                 </div>
 
                 <div class="tasks-panel-scroll">
                     <div id="tasks-active-area"></div>
                     <div class="task-done-block" id="task-done-block" style="display:none">
-                        <button type="button" class="task-done-toggle" id="task-done-toggle" onclick="toggleDoneSection()">Completed</button>
+                        <button type="button" class="task-done-toggle" id="task-done-toggle" onclick="toggleDoneSection()" data-i18n="tasks.completed">Completed</button>
                         <div id="task-done-inner"></div>
                     </div>
                 </div>
@@ -930,46 +916,46 @@
 
             <div id="panel-gantt" class="tab-panel">
                 <div class="gantt-wrap" id="gantt-wrap"></div>
-                <div class="period-nav period-nav--bottom" role="navigation" aria-label="Gantt month">
+                <div class="period-nav period-nav--bottom" role="navigation" data-i18n-aria-label="tasks.ariaNavGanttMonth" aria-label="Gantt month">
                     <div class="period-nav-cluster">
-                        <button type="button" class="period-nav-btn" onclick="ganttPrev()" title="Previous month">&#9664;</button>
+                        <button type="button" class="period-nav-btn" onclick="ganttPrev()" data-i18n-title="tasks.prevMonth" title="Previous month">&#9664;</button>
                         <span class="period-nav-label period-nav-label--gantt" id="gantt-month-label"></span>
-                        <button type="button" class="period-nav-btn period-nav-btn--next" onclick="ganttNext()" title="Next month">&#9654;</button>
+                        <button type="button" class="period-nav-btn period-nav-btn--next" onclick="ganttNext()" data-i18n-title="tasks.nextMonth" title="Next month">&#9654;</button>
                     </div>
                 </div>
             </div>
 
             <div id="panel-goals" class="tab-panel">
                 <div class="goals-add-row">
-                    <button class="mac-btn" onclick="addGoal()">&#10010; Add Goal</button>
-                    <span class="panel-hint">Set key objectives for a time period</span>
+                    <button class="mac-btn" onclick="addGoal()">&#10010; <span data-i18n="tasks.addGoal">Add Goal</span></button>
+                    <span class="panel-hint" data-i18n="tasks.goalsHint">Set key objectives for a time period</span>
                 </div>
                 <div class="goals-panel" id="goals-list"></div>
             </div>
 
             <div id="panel-journal" class="tab-panel">
                 <div class="journal-add-row">
-                    <button class="mac-btn" onclick="addJournalEntry()">&#10010; New entry</button>
-                    <span class="panel-hint">Your journey is yours alone — unique, unrepeatable. Write it down here.</span>
+                    <button class="mac-btn" onclick="addJournalEntry()">&#10010; <span data-i18n="tasks.newJournalEntry">New entry</span></button>
+                    <span class="panel-hint" data-i18n="tasks.journalHint">Your journey is yours alone — unique, unrepeatable. Write it down here.</span>
                 </div>
                 <div class="journal-panel" id="journal-list"></div>
-                <div class="period-nav period-nav--bottom" role="navigation" aria-label="Journal by month">
+                <div class="period-nav period-nav--bottom" role="navigation" data-i18n-aria-label="tasks.ariaNavJournalMonth" aria-label="Journal by month">
                     <div class="period-nav-cluster">
-                        <button type="button" class="period-nav-btn" onclick="journalMonthPrev()" title="Previous month">&#9664;</button>
+                        <button type="button" class="period-nav-btn" onclick="journalMonthPrev()" data-i18n-title="tasks.prevMonth" title="Previous month">&#9664;</button>
                         <span class="period-nav-label" id="journal-month-label"></span>
-                        <button type="button" class="period-nav-btn period-nav-btn--next" onclick="journalMonthNext()" title="Next month">&#9654;</button>
+                        <button type="button" class="period-nav-btn period-nav-btn--next" onclick="journalMonthNext()" data-i18n-title="tasks.nextMonth" title="Next month">&#9654;</button>
                     </div>
                 </div>
             </div>
 
             <div id="panel-notes" class="tab-panel">
                 <div class="journal-add-row">
-                    <button class="mac-btn" onclick="addNoteItem()">&#10010; New note</button>
+                    <button class="mac-btn" onclick="addNoteItem()">&#10010; <span data-i18n="tasks.newNote">New note</span></button>
                 </div>
                 <div class="notes-body">
                     <div class="journal-panel" id="notes-list"></div>
                     <div class="notes-archive-block" id="notes-archive-block" style="display:none">
-                        <button type="button" class="task-done-toggle" id="notes-archive-toggle" onclick="toggleNotesArchive()">Archived</button>
+                        <button type="button" class="task-done-toggle" id="notes-archive-toggle" onclick="toggleNotesArchive()" data-i18n="tasks.archived">Archived</button>
                         <div class="notes-archive-inner" id="notes-archive-inner" style="display:none"></div>
                     </div>
                 </div>
@@ -978,6 +964,7 @@
     </div>
 </div>
 
+<script src="i18n.js"></script>
 <script>
     let tasks = [];
     let editingTaskIndex = null;
@@ -1006,17 +993,16 @@
     let notesItems = [];
     let goals = [];
     let journal = [];
-    const DEFAULT_SECTION_LABELS = {
-        tasks: 'Tasks',
-        gantt: 'Gantt',
-        goals: 'Goals',
-        journal: 'Journal',
-        notes: 'Notes'
+    const TAB_I18N_KEYS = {
+        tasks: 'tasks.tabTasks',
+        gantt: 'tasks.tabGantt',
+        goals: 'tasks.tabGoals',
+        journal: 'tasks.tabJournal',
+        notes: 'tasks.tabNotes'
     };
-    function cloneSectionLabels() {
-        return { ...DEFAULT_SECTION_LABELS };
+    function tabLabel(tabId) {
+        return I18n.t(TAB_I18N_KEYS[tabId] || 'tasks.tabTasks');
     }
-    let sectionLabels = cloneSectionLabels();
     let fileHandle = null;
     let pomoDuration = 25;
     let pomoState = { active: false, paused: false, taskIndex: -1, remaining: 0, interval: null };
@@ -1043,8 +1029,12 @@
     } catch (e) {}
     const DB_NAME = 'indietoolbox_tasks';
     const STORE_NAME = 'handles';
-    const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
-    const DAY_ABBR = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+    function monthFull(m0to11) {
+        return I18n.t('tasks.month.' + m0to11);
+    }
+    function dayAbbr(dow) {
+        return I18n.t('tasks.dow.' + dow);
+    }
 
     function openDB() {
         return new Promise((resolve, reject) => {
@@ -1081,9 +1071,8 @@
 
     function applyTabLabels() {
         document.querySelectorAll('.tab[data-tab]').forEach(btn => {
-            if (btn.querySelector('.tab-rename-input')) return;
             const id = btn.dataset.tab;
-            btn.textContent = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
+            if (id) btn.textContent = tabLabel(id);
         });
     }
 
@@ -1092,47 +1081,12 @@
         if (!el) return;
         const app = document.getElementById('app-screen');
         if (!app || window.getComputedStyle(app).display === 'none') {
-            el.textContent = 'Link a file';
+            el.textContent = I18n.t('tasks.titleBarLinkFile');
             return;
         }
         const active = document.querySelector('.tab.active');
         const id = active && active.dataset.tab ? active.dataset.tab : 'tasks';
-        el.textContent = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
-    }
-
-    function startTabRename(btn) {
-        const id = btn.dataset.tab;
-        if (!id || btn.querySelector('.tab-rename-input')) return;
-        const before = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
-        btn.textContent = '';
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.className = 'tab-rename-input';
-        input.value = before;
-        input.maxLength = 40;
-        btn.appendChild(input);
-        input.focus();
-        input.select();
-
-        let finished = false;
-        const finish = (commit) => {
-            if (finished) return;
-            finished = true;
-            if (commit) {
-                const v = input.value.trim();
-                sectionLabels[id] = (v || DEFAULT_SECTION_LABELS[id]).slice(0, 40);
-                save();
-            }
-            if (input.parentNode) input.remove();
-            btn.textContent = sectionLabels[id] || DEFAULT_SECTION_LABELS[id];
-            updateTitleBar();
-        };
-
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-            else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-        });
-        input.addEventListener('blur', () => finish(true));
+        el.textContent = tabLabel(id);
     }
 
     function isoTodayLocal() {
@@ -1157,10 +1111,10 @@
     }
 
     function formatMonthKeyLabel(monthKey) {
-        if (monthKey === '__undated__') return 'No Gantt dates';
+        if (monthKey === '__undated__') return I18n.t('tasks.noGanttDates');
         const [y, m] = monthKey.split('-').map(Number);
         if (!y || !m) return monthKey;
-        return `${MONTH_NAMES[m - 1]} ${y}`;
+        return `${monthFull(m - 1)} ${y}`;
     }
 
     function compareOpenIndices(ai, bi) {
@@ -1213,15 +1167,15 @@
                 const timeStr = formatPomo(pomoState.remaining);
                 if (pomoState.paused) {
                     pomoBtn = `<span class="pomo-timer">${timeStr}</span>
-                        <button type="button" class="task-btn" onclick="resumePomo()" title="Resume">${TASK_BTN_SVG.play}</button>
-                        <button type="button" class="task-btn" onclick="stopPomo()" title="Stop">${TASK_BTN_SVG.stop}</button>`;
+                        <button type="button" class="task-btn" onclick="resumePomo()" title="${I18n.t('tasks.resume')}">${TASK_BTN_SVG.play}</button>
+                        <button type="button" class="task-btn" onclick="stopPomo()" title="${I18n.t('tasks.stop')}">${TASK_BTN_SVG.stop}</button>`;
                 } else {
                     pomoBtn = `<span class="pomo-timer">${timeStr}</span>
-                        <button type="button" class="task-btn" onclick="pausePomo()" title="Pause">${TASK_BTN_SVG.pause}</button>
-                        <button type="button" class="task-btn" onclick="stopPomo()" title="Stop">${TASK_BTN_SVG.stop}</button>`;
+                        <button type="button" class="task-btn" onclick="pausePomo()" title="${I18n.t('tasks.pause')}">${TASK_BTN_SVG.pause}</button>
+                        <button type="button" class="task-btn" onclick="stopPomo()" title="${I18n.t('tasks.stop')}">${TASK_BTN_SVG.stop}</button>`;
                 }
             } else {
-                pomoBtn = `<button type="button" class="task-btn" onclick="startPomo(${i})" title="Start Pomodoro">${TASK_BTN_SVG.play}</button>`;
+                pomoBtn = `<button type="button" class="task-btn" onclick="startPomo(${i})" title="${I18n.t('tasks.startPomodoro')}">${TASK_BTN_SVG.play}</button>`;
             }
         }
 
@@ -1230,13 +1184,13 @@
             <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${i})" ${isEditing ? 'disabled' : ''}>
             ${isEditing
                 ? '<input class="task-rename-input" type="text" autocomplete="off">'
-                : `<span class="task-text" ondblclick="startRenameTask(${i})" title="Double-click to rename">${escapeHtml(task.text)}</span>`}
+                : `<span class="task-text" ondblclick="startRenameTask(${i})" title="${I18n.t('tasks.doubleClickRename')}">${escapeHtml(task.text)}</span>`}
             <div class="task-actions">
                 ${pomoBtn}
                 ${isEditing
                     ? ''
-                    : `<button type="button" class="task-btn" onclick="startRenameTask(${i})" title="Rename">${TASK_BTN_SVG.edit}</button>`}
-                <button type="button" class="task-btn" onclick="deleteTask(${i})" title="Delete">${TASK_BTN_SVG.del}</button>
+                    : `<button type="button" class="task-btn" onclick="startRenameTask(${i})" title="${I18n.t('tasks.rename')}">${TASK_BTN_SVG.edit}</button>`}
+                <button type="button" class="task-btn" onclick="deleteTask(${i})" title="${I18n.t('tasks.delete')}">${TASK_BTN_SVG.del}</button>
             </div>
         `;
         if (isEditing) {
@@ -1288,7 +1242,7 @@
         const countEl = document.getElementById('task-count');
 
         if (tasks.length === 0) {
-            activeRoot.innerHTML = '<div class="empty-state">No tasks yet. Add one above.</div>';
+            activeRoot.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyTasks') + '</div>';
             doneBlock.style.display = 'none';
             doneInner.innerHTML = '';
             countEl.textContent = '';
@@ -1300,7 +1254,7 @@
 
         activeRoot.innerHTML = '';
         if (openIndices.length === 0) {
-            activeRoot.innerHTML = '<div class="empty-state">No active tasks — all completed or add a new one.</div>';
+            activeRoot.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyActiveTasks') + '</div>';
         } else {
             renderGroupedByMonth(activeRoot, openIndices, taskMonthKeyOpen, 'o:');
         }
@@ -1311,7 +1265,7 @@
         } else {
             doneBlock.style.display = 'block';
             const hidden = !!taskUICollapsed.doneHidden;
-            doneToggle.textContent = `${hidden ? '\u25b8' : '\u25be'} Completed (${doneIndices.length})`;
+            doneToggle.textContent = `${hidden ? '\u25b8' : '\u25be'} ${I18n.t('tasks.completed')} (${doneIndices.length})`;
             doneInner.innerHTML = '';
             if (!hidden) {
                 renderGroupedByMonth(doneInner, doneIndices, taskMonthKeyDone, 'd:');
@@ -1319,7 +1273,7 @@
         }
 
         const done = doneIndices.length;
-        countEl.textContent = `${done} of ${tasks.length} completed`;
+        countEl.textContent = I18n.t('tasks.taskCountSummary').replace('{done}', String(done)).replace('{total}', String(tasks.length));
     }
 
     function escapeHtml(str) {
@@ -1436,7 +1390,7 @@
         pomoState.remaining--;
         updatePomoGlobal();
         if (pomoState.remaining <= 0) {
-            const taskName = tasks[pomoState.taskIndex]?.text || 'Task';
+            const taskName = tasks[pomoState.taskIndex]?.text || I18n.t('tasks.fallbackTaskName');
             stopPomo();
             pomoAlert(taskName);
         } else {
@@ -1448,7 +1402,7 @@
         const el = document.getElementById('pomo-global-timer');
         if (!el) return;
         if (pomoState.active) {
-            el.textContent = formatPomo(pomoState.remaining) + (pomoState.paused ? ' (paused)' : '');
+            el.textContent = formatPomo(pomoState.remaining) + (pomoState.paused ? I18n.t('tasks.pomoPausedSuffix') : '');
         } else {
             el.textContent = '';
         }
@@ -1468,7 +1422,7 @@
                 osc.stop(actx.currentTime + delay / 1000 + 0.12);
             });
         } catch (e) {}
-        alert(`Pomodoro complete!\n"${taskName}"`);
+        alert(I18n.t('tasks.pomodoroComplete').replace('{name}', taskName));
     }
 
     function switchTab(name) {
@@ -1498,10 +1452,10 @@
         const label = document.getElementById('gantt-month-label');
         const y = ganttDate.getFullYear();
         const m = ganttDate.getMonth();
-        label.textContent = `${MONTH_NAMES[m]} ${y}`;
+        label.textContent = `${monthFull(m)} ${y}`;
 
         if (tasks.length === 0) {
-            wrap.innerHTML = '<div class="gantt-empty">Add tasks first to use the Gantt chart.</div>';
+            wrap.innerHTML = '<div class="gantt-empty">' + I18n.t('tasks.ganttEmpty') + '</div>';
             return;
         }
 
@@ -1511,7 +1465,7 @@
         const colCount = daysInMonth + 1;
 
         function buildThead() {
-            let h = '<thead><tr><th class="gantt-task-hdr">Task</th>';
+            let h = '<thead><tr><th class="gantt-task-hdr">' + I18n.t('tasks.ganttTaskCol') + '</th>';
             for (let d = 1; d <= daysInMonth; d++) {
                 const dt = new Date(y, m, d);
                 const dow = dt.getDay();
@@ -1519,7 +1473,7 @@
                 let cls = '';
                 if (dow === 0 || dow === 6) cls += ' weekend-hdr';
                 if (dateStr === todayStr) cls += ' today-hdr';
-                h += `<th class="${cls}" title="${DAY_ABBR[dow]} ${d}">${d}</th>`;
+                h += `<th class="${cls}" title="${dayAbbr(dow)} ${d}">${d}</th>`;
             }
             h += '</tr></thead>';
             return h;
@@ -1557,7 +1511,7 @@
 
         let mainTable = `<table class="gantt-table">${buildThead()}`;
         if (openIndices.length === 0) {
-            mainTable += `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">No active tasks for this month.</td></tr></tbody>`;
+            mainTable += `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">${I18n.t('tasks.ganttEmptyRow')}</td></tr></tbody>`;
         } else {
             mainTable += buildBodyRows(openIndices);
         }
@@ -1569,7 +1523,7 @@
             const chevron = hidden ? '\u25b8' : '\u25be';
             doneSection = `
                 <div class="gantt-done-block">
-                    <button type="button" class="task-done-toggle" onclick="toggleGanttDoneSection()">${chevron} Completed this month (${doneThisMonthIndices.length})</button>
+                    <button type="button" class="task-done-toggle" onclick="toggleGanttDoneSection()">${chevron} ${I18n.t('tasks.ganttCompletedThisMonth')} (${doneThisMonthIndices.length})</button>
                     <div class="gantt-done-inner-wrap" id="gantt-done-inner" style="display:${hidden ? 'none' : 'block'}">
                         <table class="gantt-table">${buildThead()}${buildBodyRows(doneThisMonthIndices)}</table>
                     </div>
@@ -1619,12 +1573,11 @@
 
     function formatGoalRange(from, to) {
         if (!from || !to) return '';
-        const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
         const [fy, fm, fd] = from.split('-').map(Number);
         const [ty, tm, td] = to.split('-').map(Number);
         if (!fy || !fm || !fd || !ty || !tm || !td) return '';
-        const fMonth = MONTHS_SHORT[fm - 1];
-        const tMonth = MONTHS_SHORT[tm - 1];
+        const fMonth = I18n.t('tasks.monthShort.' + (fm - 1));
+        const tMonth = I18n.t('tasks.monthShort.' + (tm - 1));
         if (fy === ty && fm === tm) {
             return `${fd}\u2013${td} ${fMonth}`;
         }
@@ -1642,7 +1595,7 @@
     function renderGoals() {
         const container = document.getElementById('goals-list');
         if (goals.length === 0) {
-            container.innerHTML = '<div class="empty-state">No goals yet. Add one above.</div>';
+            container.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyGoals') + '</div>';
             return;
         }
         container.innerHTML = '';
@@ -1656,9 +1609,9 @@
                     <span class="goal-sep">&#8594;</span>
                     <input type="date" value="${g.to}" onchange="updateGoal(${i},'to',this.value);renderGoals()">
                     <span class="goal-range-label">${rangeLabel}</span>
-                    <button type="button" class="task-btn" onclick="deleteGoal(${i})" title="Delete" style="margin-left:auto">${TASK_BTN_SVG.del}</button>
+                    <button type="button" class="task-btn" onclick="deleteGoal(${i})" title="${I18n.t('tasks.delete')}" style="margin-left:auto">${TASK_BTN_SVG.del}</button>
                 </div>
-                <textarea class="goal-desc" placeholder="Key objectives for this period..." oninput="updateGoal(${i},'text',this.value);autoGrow(this)">${escapeHtml(g.text)}</textarea>
+                <textarea class="goal-desc" placeholder="${I18n.t('tasks.goalPlaceholder')}" oninput="updateGoal(${i},'text',this.value);autoGrow(this)">${escapeHtml(g.text)}</textarea>
             `;
             container.appendChild(div);
         });
@@ -1669,7 +1622,8 @@
         if (!iso) return '\u2014';
         const d = new Date(iso);
         if (isNaN(d.getTime())) return iso;
-        return d.toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' });
+        const loc = I18n.getLang() === 'ru' ? 'ru-RU' : 'en-GB';
+        return d.toLocaleString(loc, { dateStyle: 'medium', timeStyle: 'short' });
     }
 
     function journalSyncEditorToData() {
@@ -1773,11 +1727,11 @@
 
         const vy = journalViewDate.getFullYear();
         const vm = journalViewDate.getMonth();
-        if (label) label.textContent = `${MONTH_NAMES[vm]} ${vy}`;
+        if (label) label.textContent = `${monthFull(vm)} ${vy}`;
 
         if (journal.length === 0) {
             journalEditingIndex = null;
-            container.innerHTML = '<div class="empty-state">No journal entries yet. Create one above.</div>';
+            container.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyJournal') + '</div>';
             return;
         }
 
@@ -1791,7 +1745,7 @@
 
         if (rows.length === 0) {
             journalEditingIndex = null;
-            container.innerHTML = `<div class="empty-state">No entries in ${MONTH_NAMES[vm]} ${vy}.</div>`;
+            container.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyJournalMonth').replace('{month}', monthFull(vm)).replace('{year}', String(vy)) + '</div>';
             return;
         }
 
@@ -1803,20 +1757,20 @@
             const trimmed = (entry.text || '').trim();
             const bubbleInner = trimmed
                 ? escapeHtml(entry.text)
-                : '<span class="journal-bubble-empty">(No text yet — click Edit)</span>';
+                : '<span class="journal-bubble-empty">' + I18n.t('tasks.journalNoText') + '</span>';
             const actionsEdit = isEdit
-                ? `<button type="button" class="journal-mac-btn" onmousedown="event.preventDefault();journalFinishCurrentEdit()">Done</button>`
-                : `<button type="button" class="journal-mac-btn" onclick="editJournalEntry(${i})">Edit</button>`;
+                ? `<button type="button" class="journal-mac-btn" onmousedown="event.preventDefault();journalFinishCurrentEdit()">${I18n.t('tasks.done')}</button>`
+                : `<button type="button" class="journal-mac-btn" onclick="editJournalEntry(${i})">${I18n.t('tasks.edit')}</button>`;
             div.innerHTML = `
                 <div class="journal-header">
                     <span class="journal-date">${escapeHtml(formatJournalDate(entry.created))}</span>
                     <div class="journal-actions">
                         ${actionsEdit}
-                        <button type="button" class="task-btn" onclick="deleteJournalEntry(${i})" title="Delete entry">${TASK_BTN_SVG.del}</button>
+                        <button type="button" class="task-btn" onclick="deleteJournalEntry(${i})" title="${I18n.t('tasks.deleteEntry')}">${TASK_BTN_SVG.del}</button>
                     </div>
                 </div>
                 ${isEdit
-                    ? `<textarea class="journal-text" data-ji="${i}" placeholder="Write here..." oninput="updateJournalEntry(${i},this.value);autoGrow(this)" onblur="journalAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
+                    ? `<textarea class="journal-text" data-ji="${i}" placeholder="${I18n.t('tasks.journalWritePlaceholder')}" oninput="updateJournalEntry(${i},this.value);autoGrow(this)" onblur="journalAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
                     : `<div class="journal-bubble">${bubbleInner}</div>`
                 }
             `;
@@ -1951,7 +1905,7 @@
         if (!container) return;
         if (notesItems.length === 0) {
             notesEditingIndex = null;
-            container.innerHTML = '<div class="empty-state">No notes yet. Add one above.</div>';
+            container.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyNotes') + '</div>';
             renderNotesArchive();
             return;
         }
@@ -1963,20 +1917,20 @@
             const trimmed = (entry.text || '').trim();
             const bubbleInner = trimmed
                 ? escapeHtml(entry.text)
-                : '<span class="journal-bubble-empty">(No text yet — click Edit)</span>';
+                : '<span class="journal-bubble-empty">' + I18n.t('tasks.journalNoText') + '</span>';
             const actionsEdit = isEdit
-                ? `<button type="button" class="journal-mac-btn" onmousedown="event.preventDefault();notesFinishCurrentEdit()">Done</button>`
-                : `<button type="button" class="journal-mac-btn" onclick="editNoteItem(${i})">Edit</button>`;
+                ? `<button type="button" class="journal-mac-btn" onmousedown="event.preventDefault();notesFinishCurrentEdit()">${I18n.t('tasks.done')}</button>`
+                : `<button type="button" class="journal-mac-btn" onclick="editNoteItem(${i})">${I18n.t('tasks.edit')}</button>`;
             div.innerHTML = `
                 <div class="note-toolbar">
                     <div class="journal-actions">
                         ${actionsEdit}
-                        <button type="button" class="journal-mac-btn" onclick="archiveNoteItem(${i})" title="Move to archive">Archive</button>
-                        <button type="button" class="task-btn" onclick="deleteNoteItem(${i})" title="Delete note">${TASK_BTN_SVG.del}</button>
+                        <button type="button" class="journal-mac-btn" onclick="archiveNoteItem(${i})" title="${I18n.t('tasks.moveToArchive')}">${I18n.t('tasks.archive')}</button>
+                        <button type="button" class="task-btn" onclick="deleteNoteItem(${i})" title="${I18n.t('tasks.deleteNote')}">${TASK_BTN_SVG.del}</button>
                     </div>
                 </div>
                 ${isEdit
-                    ? `<textarea class="note-text" data-ni="${i}" placeholder="Write note..." oninput="updateNoteItem(${i},this.value);autoGrow(this)" onblur="notesAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
+                    ? `<textarea class="note-text" data-ni="${i}" placeholder="${I18n.t('tasks.noteWritePlaceholder')}" oninput="updateNoteItem(${i},this.value);autoGrow(this)" onblur="notesAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
                     : `<div class="journal-bubble">${bubbleInner}</div>`
                 }
             `;
@@ -2006,7 +1960,7 @@
             return;
         }
         block.style.display = '';
-        toggle.textContent = (notesArchiveExpanded ? '\u25bc ' : '\u25b6 ') + 'Archived (' + notesArchived.length + ')';
+        toggle.textContent = (notesArchiveExpanded ? '\u25bc ' : '\u25b6 ') + I18n.t('tasks.archived') + ' (' + notesArchived.length + ')';
         if (!notesArchiveExpanded) {
             inner.style.display = 'none';
             inner.innerHTML = '';
@@ -2020,11 +1974,11 @@
             const trimmed = (entry.text || '').trim();
             const bubbleInner = trimmed
                 ? escapeHtml(entry.text)
-                : '<span class="journal-bubble-empty">(empty)</span>';
+                : '<span class="journal-bubble-empty">' + I18n.t('tasks.noteEmpty') + '</span>';
             wrap.innerHTML = `
                 <div class="note-toolbar">
                     <div class="journal-actions">
-                        <button type="button" class="journal-mac-btn" onclick="restoreArchivedNote(${ai})">Restore</button>
+                        <button type="button" class="journal-mac-btn" onclick="restoreArchivedNote(${ai})">${I18n.t('tasks.restore')}</button>
                     </div>
                 </div>
                 <div class="journal-bubble">${bubbleInner}</div>
@@ -2066,7 +2020,6 @@
             notesArchived = [];
             goals = [];
             journal = [];
-            sectionLabels = cloneSectionLabels();
         } else {
             tasks = (data.tasks || []).map(t => ({ text: t.text, done: !!t.done, days: t.days || [] }));
             notesItems = normalizeNotesField(data.notes);
@@ -2084,24 +2037,13 @@
                 if (isNaN(tb)) return -1;
                 return tb - ta;
             });
-            sectionLabels = cloneSectionLabels();
-            const sl = data.sectionLabels;
-            if (sl && typeof sl === 'object') {
-                for (const k of Object.keys(DEFAULT_SECTION_LABELS)) {
-                    const v = sl[k];
-                    if (typeof v === 'string') {
-                        const t = v.trim();
-                        sectionLabels[k] = t ? t.slice(0, 40) : DEFAULT_SECTION_LABELS[k];
-                    }
-                }
-            }
         }
         journalEditingIndex = null;
         notesEditingIndex = null;
     }
 
     function getSaveData() {
-        return { tasks, notes: notesItems, notesArchived, goals, journal, sectionLabels };
+        return { tasks, notes: notesItems, notesArchived, goals, journal };
     }
 
     async function save() {
@@ -2119,12 +2061,12 @@
 
     async function linkFile() {
         if (!window.showOpenFilePicker) {
-            alert('File System Access API is not supported. Use a Chromium-based browser and serve via localhost.');
+            alert(I18n.t('tasks.fsApiUnsupported'));
             return;
         }
         try {
             const [handle] = await window.showOpenFilePicker({
-                types: [{ description: 'Journey Book JSON', accept: { 'application/json': ['.json'] } }],
+                types: [{ description: I18n.t('tasks.filePickerJson'), accept: { 'application/json': ['.json'] } }],
                 multiple: false
             });
             fileHandle = handle;
@@ -2142,13 +2084,13 @@
 
     async function createFile() {
         if (!window.showSaveFilePicker) {
-            alert('File System Access API is not supported. Use a Chromium-based browser and serve via localhost.');
+            alert(I18n.t('tasks.fsApiUnsupported'));
             return;
         }
         try {
             const handle = await window.showSaveFilePicker({
                 suggestedName: 'journey-book.json',
-                types: [{ description: 'Journey Book JSON', accept: { 'application/json': ['.json'] } }]
+                types: [{ description: I18n.t('tasks.filePickerJson'), accept: { 'application/json': ['.json'] } }]
             });
             fileHandle = handle;
             await storeHandle(handle);
@@ -2159,7 +2101,6 @@
             journal = [];
             journalEditingIndex = null;
             notesEditingIndex = null;
-            sectionLabels = cloneSectionLabels();
             const writable = await handle.createWritable();
             await writable.write(JSON.stringify(getSaveData(), null, 2));
             await writable.close();
@@ -2173,7 +2114,7 @@
 
     function updateStatus(name, synced) {
         const el = document.getElementById('file-status');
-        el.textContent = synced ? `Linked: ${name}` : `${name} (sync error)`;
+        el.textContent = synced ? I18n.t('tasks.statusLinked').replace('{name}', name) : I18n.t('tasks.statusSyncError').replace('{name}', name);
         el.title = name;
     }
 
@@ -2223,14 +2164,33 @@
         }
     }
 
-    document.querySelector('.tab-bar').addEventListener('dblclick', (e) => {
-        const btn = e.target.closest('.tab');
-        if (!btn || e.target.classList.contains('tab-rename-input')) return;
-        e.preventDefault();
-        startTabRename(btn);
-    });
+    function refreshAllTaskPanels() {
+        render();
+        renderGantt();
+        renderGoals();
+        renderJournal();
+        renderNotes();
+    }
 
-    tryAutoConnect();
+    (async function bootTasksI18n() {
+        await I18n.init();
+        I18n.applyTo(document.body);
+        document.title = I18n.t('tasks.pageTitle');
+        applyTabLabels();
+        updateTitleBar();
+        window.addEventListener('message', async (e) => {
+            const d = e.data;
+            if (!d || d.type !== I18n.MSG_TYPE) return;
+            if (d.lang !== 'en' && d.lang !== 'ru') return;
+            await I18n.setLang(d.lang);
+            document.title = I18n.t('tasks.pageTitle');
+            applyTabLabels();
+            updateTitleBar();
+            const app = document.getElementById('app-screen');
+            if (app && window.getComputedStyle(app).display !== 'none') refreshAllTaskPanels();
+        });
+        tryAutoConnect();
+    })();
 </script>
 </body>
 </html>

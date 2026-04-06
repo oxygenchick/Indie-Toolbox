@@ -44,3 +44,11 @@ input[type="checkbox"]:disabled {
     cursor: default;
     box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.2);
 }
+
+/* Avoid flashing default (EN) strings before i18n applies — see i18n.js + inline head script */
+html.i18n-pending body {
+    visibility: hidden;
+}
+html.i18n-ready body {
+    visibility: visible;
+}

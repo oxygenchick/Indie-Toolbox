@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Image Editor</title>
     <link rel="stylesheet" href="dither-ui.css">
@@ -441,17 +442,17 @@
         <div class="mac-window">
             <div class="title-bar">
                 <div class="title-bar-lines"></div>
-                <div class="title-bar-text">Upload</div>
+                <div class="title-bar-text" data-i18n="image.uploadTitleBar">Upload</div>
             </div>
             <div class="window-content">
                 <div class="upload-area" id="upload-area">
                     <span class="upload-icon">&#128444;</span>
-                    <div style="font-weight:bold;font-size:14px;margin-bottom:4px;">Drop image here</div>
-                    <div style="font-size:12px;color:#666;">...or click to select a file</div>
+                    <div id="upload-line1" style="font-weight:bold;font-size:14px;margin-bottom:4px;" data-i18n="image.dropHere">Drop image here</div>
+                    <div id="upload-line2" style="font-size:12px;color:#666;" data-i18n="image.dropHint">...or click to select a file</div>
                     <input type="file" id="fileInput" accept="image/*,.heic,.heif" style="display:none;">
                 </div>
                 <div style="text-align:center;margin-top:8px;">
-                    <button class="mac-btn" onclick="pasteFromClipboard()">&#9112; Paste from clipboard</button>
+                    <button class="mac-btn" onclick="pasteFromClipboard()">&#9112; <span data-i18n="image.pasteClipboard">Paste from clipboard</span></button>
                 </div>
             </div>
         </div>
@@ -466,62 +467,62 @@
             </div>
             <div class="window-content">
                 <div class="preview-wrap" id="preview-wrap">
-                    <div class="markup-toolbar" id="markup-toolbar" aria-label="Markup tools">
-                        <button type="button" class="markup-tool-btn active" id="markup-tool-pencil" title="Pencil" aria-label="Pencil">
+                    <div class="markup-toolbar" id="markup-toolbar" data-i18n-aria-label="image.markupToolsAria" aria-label="Markup tools">
+                        <button type="button" class="markup-tool-btn active" id="markup-tool-pencil" data-i18n-title="image.pencil" data-i18n-aria-label="image.pencil" title="Pencil" aria-label="Pencil">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <path fill-rule="evenodd" clip-rule="evenodd" fill="currentColor" d="M18.3687 3.29001L20.7087 5.63C21.0988 6.01999 21.0988 6.64999 20.7087 7.04001L18.8788 8.87L15.1288 5.12L16.9587 3.29001C17.1487 3.10001 17.3987 3 17.6588 3C17.9188 3 18.1688 3.09 18.3687 3.29001ZM2.99875 17.25V21H6.74875L17.8087 9.94L14.0587 6.19L2.99875 17.25ZM5.91876 19H4.99875V18.08L14.0587 9.01999L14.9788 9.94L5.91876 19Z"/>
                             </svg>
                         </button>
-                        <button type="button" class="markup-tool-btn" id="markup-tool-text" title="Text box" aria-label="Text">
+                        <button type="button" class="markup-tool-btn" id="markup-tool-text" data-i18n-title="image.textBox" data-i18n-aria-label="image.text" title="Text box" aria-label="Text">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                 <path fill="currentColor" d="M5 4.5V7.5H10.5V19.5H13.5V7.5H19V4.5H5Z"/>
                             </svg>
                         </button>
-                        <button type="button" class="markup-tool-btn" id="markup-tool-eraser" title="Eraser" aria-label="Eraser">
+                        <button type="button" class="markup-tool-btn" id="markup-tool-eraser" data-i18n-title="image.eraser" data-i18n-aria-label="image.eraser" title="Eraser" aria-label="Eraser">
                             <svg width="18" height="18" viewBox="0 0 24 25" fill="none" aria-hidden="true">
                                 <path fill="currentColor" d="M15 3L2 16L7 21H11.1L22 10.1L15 3ZM9.6 11.2L15 5.8L19.2 10L13.9 15.4L9.6 11.2Z"/>
                             </svg>
                         </button>
                         <span class="markup-toolbar-sep" aria-hidden="true"></span>
-                        <input type="color" id="markup-color" value="#cc0000" title="Color (pencil, text &amp; new boxes)" aria-label="Color">
-                        <label title="Line width">Ln <input type="range" id="markup-line-width" min="1" max="24" value="4"></label>
-                        <label title="Eraser size">Er <input type="range" id="markup-eraser-size" min="4" max="48" value="16"></label>
+                        <input type="color" id="markup-color" value="#cc0000" data-i18n-title="image.colorTitle" data-i18n-aria-label="image.colorAria" title="Color (pencil, text &amp; new boxes)" aria-label="Color">
+                        <label data-i18n-title="image.lineWidth" title="Line width">Ln <input type="range" id="markup-line-width" min="1" max="24" value="4"></label>
+                        <label data-i18n-title="image.eraserSize" title="Eraser size">Er <input type="range" id="markup-eraser-size" min="4" max="48" value="16"></label>
                     </div>
                     <canvas id="preview-canvas"></canvas>
-                    <textarea id="markup-text-editor" spellcheck="true" rows="1" aria-label="Text note"></textarea>
+                    <textarea id="markup-text-editor" spellcheck="true" rows="1" data-i18n-aria-label="image.textNoteAria" aria-label="Text note"></textarea>
                 </div>
 
                 <div id="crop-bar" class="crop-bar" style="display:none;">
-                    <button class="mac-btn" onclick="applyCrop()">&#10003; Apply Crop</button>
-                    <button class="mac-btn" onclick="cancelCrop()">&#10005; Cancel</button>
-                    <span class="crop-hint">Drag corners to resize &bull; drag inside to move</span>
+                    <button class="mac-btn" onclick="applyCrop()">&#10003; <span data-i18n="image.applyCrop">Apply Crop</span></button>
+                    <button class="mac-btn" onclick="cancelCrop()">&#10005; <span data-i18n="image.cancelCrop">Cancel</span></button>
+                    <span class="crop-hint" data-i18n="image.cropHint">Drag corners to resize &bull; drag inside to move</span>
                 </div>
 
                 <div class="info-row" id="info-row">
-                    <span class="label">Original:</span> <span id="info-original">—</span>
+                    <span class="label" data-i18n="image.labelOriginal">Original:</span> <span id="info-original">—</span>
                     &nbsp;&nbsp;
-                    <span class="label">Current:</span> <span id="info-current">—</span>
+                    <span class="label" data-i18n="image.labelCurrent">Current:</span> <span id="info-current">—</span>
                 </div>
 
                 <div class="controls-row">
                     <div class="control-group">
-                        <div class="control-group-title">Resize</div>
+                        <div class="control-group-title" data-i18n="image.groupResize">Resize</div>
                         <div class="field-row">
-                            <label>W:</label>
+                            <label data-i18n="image.labelW">W:</label>
                             <input type="number" id="out-width" min="1" max="16000">
-                            <span class="link-icon" id="link-icon" title="Aspect ratio locked">&#9741;</span>
-                            <label>H:</label>
+                            <span class="link-icon" id="link-icon" data-i18n-title="image.linkLocked" title="Aspect ratio locked">&#9741;</span>
+                            <label data-i18n="image.labelH">H:</label>
                             <input type="number" id="out-height" min="1" max="16000">
                         </div>
                         <div class="field-row">
-                            <label><input type="checkbox" id="keep-aspect" checked> Keep proportions</label>
+                            <label><input type="checkbox" id="keep-aspect" checked> <span data-i18n="image.keepProportions">Keep proportions</span></label>
                         </div>
                     </div>
 
                     <div class="control-group">
-                        <div class="control-group-title">Output</div>
+                        <div class="control-group-title" data-i18n="image.groupOutput">Output</div>
                         <div class="field-row">
-                            <label>Format:</label>
+                            <label data-i18n="image.labelFormat">Format:</label>
                             <select id="out-format">
                                 <option value="image/png">PNG</option>
                                 <option value="image/jpeg">JPEG</option>
@@ -530,7 +531,7 @@
                             </select>
                         </div>
                         <div class="field-row" id="quality-row">
-                            <label>Quality:</label>
+                            <label data-i18n="image.labelQuality">Quality:</label>
                             <input type="range" id="out-quality" min="1" max="100" value="92" oninput="document.getElementById('quality-val').textContent=this.value+'%'">
                             <span class="quality-val" id="quality-val">92%</span>
                         </div>
@@ -538,17 +539,18 @@
                 </div>
 
                 <div class="action-buttons">
-                    <button class="mac-btn" onclick="enterCropMode()" id="btn-crop">&#9986; Crop</button>
-                    <button class="mac-btn" id="btn-markup" onclick="toggleMarkupMode()">&#9998; Markup</button>
-                    <button class="mac-btn" onclick="resetImage()">&#8634; Reset</button>
-                    <button class="mac-btn" onclick="copyCompositeToClipboard()">&#9112; Copy to clipboard</button>
-                    <button class="mac-btn" onclick="downloadImage()">&#8615; Download</button>
+                    <button class="mac-btn" onclick="enterCropMode()" id="btn-crop">&#9986; <span data-i18n="image.btnCrop">Crop</span></button>
+                    <button class="mac-btn" id="btn-markup" onclick="toggleMarkupMode()">&#9998; <span data-i18n="image.btnMarkup">Markup</span></button>
+                    <button class="mac-btn" onclick="resetImage()">&#8634; <span data-i18n="image.btnReset">Reset</span></button>
+                    <button class="mac-btn" onclick="copyCompositeToClipboard()">&#9112; <span data-i18n="image.btnCopy">Copy to clipboard</span></button>
+                    <button class="mac-btn" onclick="downloadImage()">&#8615; <span data-i18n="image.btnDownload">Download</span></button>
                 </div>
             </div>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <script src="i18n.js"></script>
     <script>
         let originalImage = null;
         let originalFileName = '';
@@ -1000,14 +1002,14 @@
             const c = buildOutputCanvas(w, h);
             const blob = await new Promise(r => c.toBlob(r, 'image/png'));
             if (!blob) {
-                alert('Could not build image for clipboard.');
+                alert(I18n.t('image.alertClipboardBuild'));
                 return;
             }
             try {
                 await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
             } catch (e) {
                 console.error(e);
-                alert('Clipboard copy failed. Try Chrome/Edge, or use Download.');
+                alert(I18n.t('image.alertClipboardFail'));
             }
         }
 
@@ -1083,10 +1085,10 @@
                         return;
                     }
                 }
-                alert('No image found in clipboard.');
+                alert(I18n.t('image.alertNoImageClipboard'));
             } catch (e) {
                 if (e.name !== 'NotAllowedError') console.error(e);
-                alert('Could not read clipboard. Make sure you have an image copied.');
+                alert(I18n.t('image.alertClipboardRead'));
             }
         }
 
@@ -1113,27 +1115,28 @@
 
         async function loadFile(file) {
             const isImage = file.type.startsWith('image/') || isHeic(file);
-            if (!isImage) { alert('Not an image file.'); return; }
+            if (!isImage) { alert(I18n.t('image.alertNotImage')); return; }
 
             originalFileName = file.name;
             originalFileSize = file.size;
 
             let blob = file;
             if (isHeic(file)) {
+                const ul1 = document.getElementById('upload-line1');
                 uploadArea.querySelector('.upload-icon').textContent = '\u231B';
-                uploadArea.querySelector('div').textContent = 'Converting HEIC\u2026';
+                if (ul1) ul1.textContent = I18n.t('image.convertingHeic');
                 try {
                     blob = await heic2any({ blob: file, toType: 'image/png', quality: 1 });
                     if (Array.isArray(blob)) blob = blob[0];
                 } catch (err) {
                     console.error(err);
-                    alert('Failed to decode HEIC file.');
+                    alert(I18n.t('image.alertHeicFail'));
                     uploadArea.querySelector('.upload-icon').textContent = '\uD83D\uDDBC';
-                    uploadArea.querySelector('div').textContent = 'Drop image here';
+                    if (ul1) ul1.textContent = I18n.t('image.dropHere');
                     return;
                 }
                 uploadArea.querySelector('.upload-icon').textContent = '\uD83D\uDDBC';
-                uploadArea.querySelector('div').textContent = 'Drop image here';
+                if (ul1) ul1.textContent = I18n.t('image.dropHere');
             }
 
             const reader = new FileReader();
@@ -1739,7 +1742,7 @@
                 blob = encodeBMP(outCanvas);
             } else {
                 blob = await new Promise(r => outCanvas.toBlob(r, fmt, quality));
-                if (!blob) { alert('Export failed — format may not be supported by your browser.'); return; }
+                if (!blob) { alert(I18n.t('image.alertExportFail')); return; }
             }
 
             if (fileHandle) {
@@ -1802,6 +1805,19 @@
         window.addEventListener('resize', () => {
             if (originalImage) drawPreview();
         });
+    </script>
+    <script>
+        (async function () {
+            await I18n.init();
+            I18n.applyTo(document.body);
+            document.title = I18n.t('image.pageTitle');
+            window.addEventListener('message', function (e) {
+                var d = e.data;
+                if (!d || d.type !== I18n.MSG_TYPE) return;
+                if (d.lang !== 'en' && d.lang !== 'ru') return;
+                I18n.setLang(d.lang);
+            });
+        })();
     </script>
 </body>
 </html>
