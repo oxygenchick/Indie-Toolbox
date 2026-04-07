@@ -666,13 +666,6 @@
             border-bottom: 1px solid #000;
             background: #fff;
         }
-        .note-toolbar {
-            display: flex;
-            justify-content: flex-end;
-            align-items: center;
-            gap: 6px;
-            margin-bottom: 8px;
-        }
         .notes-body {
             flex: 1;
             display: flex;
@@ -963,6 +956,13 @@
                 </div>
                 <div class="notes-body">
                     <div class="journal-panel" id="notes-list"></div>
+                    <div class="period-nav period-nav--bottom" role="navigation" data-i18n-aria-label="tasks.ariaNavNotesMonth" aria-label="Notes by month">
+                        <div class="period-nav-cluster">
+                            <button type="button" class="period-nav-btn" onclick="notesMonthPrev()" data-i18n-title="tasks.prevMonth" title="Previous month">&#9664;</button>
+                            <span class="period-nav-label" id="notes-month-label"></span>
+                            <button type="button" class="period-nav-btn period-nav-btn--next" onclick="notesMonthNext()" data-i18n-title="tasks.nextMonth" title="Next month">&#9654;</button>
+                        </div>
+                    </div>
                     <div class="notes-archive-block" id="notes-archive-block" style="display:none">
                         <button type="button" class="task-done-toggle" id="notes-archive-toggle" onclick="toggleNotesArchive()" data-i18n="tasks.archived">Archived</button>
                         <div class="notes-archive-inner" id="notes-archive-inner" style="display:none"></div>
@@ -1026,6 +1026,8 @@
     ganttDate.setDate(1);
     let journalViewDate = new Date();
     journalViewDate.setDate(1);
+    let notesViewDate = new Date();
+    notesViewDate.setDate(1);
     let goalsSaveTimer = null;
     let notesSaveTimer = null;
     let journalSaveTimer = null;
@@ -1646,8 +1648,14 @@
 
     function journalFinishCurrentEdit() {
         if (journalEditingIndex === null) return;
+        const i = journalEditingIndex;
         journalSyncEditorToData();
         journalEditingIndex = null;
+        if (journal[i] && !String(journal[i].text || '').trim()) {
+            journal.splice(i, 1);
+            if (journalSaveTimer) clearTimeout(journalSaveTimer);
+            save();
+        }
         renderJournal();
     }
 
@@ -1798,17 +1806,26 @@
         container.querySelectorAll('.journal-text').forEach(autoGrow);
     }
 
+    function normalizeNoteCreated(obj) {
+        const c = obj && obj.created;
+        if (typeof c === 'string' && !isNaN(new Date(c).getTime())) return c;
+        return new Date().toISOString();
+    }
+
     function normalizeNotesField(raw) {
         if (Array.isArray(raw)) {
             return raw.map(n => {
-                if (typeof n === 'string') return { text: n };
-                if (n && typeof n === 'object') return { text: typeof n.text === 'string' ? n.text : '' };
-                return { text: '' };
+                if (typeof n === 'string') return { text: n, created: normalizeNoteCreated({}) };
+                if (n && typeof n === 'object') {
+                    const text = typeof n.text === 'string' ? n.text : '';
+                    return { text, created: normalizeNoteCreated(n) };
+                }
+                return { text: '', created: normalizeNoteCreated({}) };
             });
         }
         if (typeof raw === 'string') {
             const t = raw.trim();
-            return t ? [{ text: raw }] : [];
+            return t ? [{ text: raw, created: normalizeNoteCreated({}) }] : [];
         }
         return [];
     }
@@ -1836,7 +1853,21 @@
         }, 0);
     }
 
+    function notesMonthPrev() {
+        notesFinishCurrentEdit();
+        notesViewDate.setMonth(notesViewDate.getMonth() - 1);
+        renderNotes();
+    }
+
+    function notesMonthNext() {
+        notesFinishCurrentEdit();
+        notesViewDate.setMonth(notesViewDate.getMonth() + 1);
+        renderNotes();
+    }
+
     function addNoteItem() {
+        const now = new Date();
+        notesViewDate = new Date(now.getFullYear(), now.getMonth(), 1);
         if (notesEditingIndex !== null) {
             const ei = notesEditingIndex;
             const ta = document.querySelector(`textarea.note-text[data-ni="${ei}"]`);
@@ -1846,7 +1877,7 @@
                 notesItems.splice(ei, 1);
             }
         }
-        notesItems.unshift({ text: '' });
+        notesItems.unshift({ text: '', created: now.toISOString() });
         notesEditingIndex = 0;
         save();
         renderNotes();
@@ -1854,6 +1885,8 @@
             const t = document.querySelector('textarea.note-text[data-ni="0"]');
             if (t) {
                 t.focus();
+                const len = t.value.length;
+                t.setSelectionRange(len, len);
                 autoGrow(t);
             }
         });
@@ -1921,15 +1954,48 @@
 
     function renderNotes() {
         const container = document.getElementById('notes-list');
+        const label = document.getElementById('notes-month-label');
         if (!container) return;
+
+        if (notesEditingIndex !== null && notesItems[notesEditingIndex]) {
+            const ed = new Date(notesItems[notesEditingIndex].created);
+            if (!isNaN(ed.getTime())) {
+                const vy = notesViewDate.getFullYear();
+                const vm = notesViewDate.getMonth();
+                if (ed.getFullYear() !== vy || ed.getMonth() !== vm) {
+                    notesViewDate = new Date(ed.getFullYear(), ed.getMonth(), 1);
+                }
+            }
+        }
+
+        const vy = notesViewDate.getFullYear();
+        const vm = notesViewDate.getMonth();
+        if (label) label.textContent = `${monthFull(vm)} ${vy}`;
+
         if (notesItems.length === 0) {
             notesEditingIndex = null;
             container.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyNotes') + '</div>';
             renderNotesArchive();
             return;
         }
-        container.innerHTML = '';
+
+        const rows = [];
         notesItems.forEach((entry, i) => {
+            const d = new Date(entry.created);
+            if (isNaN(d.getTime())) return;
+            if (d.getFullYear() !== vy || d.getMonth() !== vm) return;
+            rows.push({ entry, i });
+        });
+
+        if (rows.length === 0) {
+            notesEditingIndex = null;
+            container.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyNotesMonth').replace('{month}', monthFull(vm)).replace('{year}', String(vy)) + '</div>';
+            renderNotesArchive();
+            return;
+        }
+
+        container.innerHTML = '';
+        rows.forEach(({ entry, i }) => {
             const div = document.createElement('div');
             div.className = 'note-item';
             const isEdit = notesEditingIndex === i;
@@ -1941,7 +2007,8 @@
                 ? `<button type="button" class="journal-mac-btn" onmousedown="event.preventDefault();notesFinishCurrentEdit()">${I18n.t('tasks.done')}</button>`
                 : `<button type="button" class="journal-mac-btn" onclick="editNoteItem(${i})">${I18n.t('tasks.edit')}</button>`;
             div.innerHTML = `
-                <div class="note-toolbar">
+                <div class="journal-header">
+                    <span class="journal-date">${escapeHtml(formatJournalDate(entry.created))}</span>
                     <div class="journal-actions">
                         ${actionsEdit}
                         <button type="button" class="journal-mac-btn" onclick="archiveNoteItem(${i})" title="${I18n.t('tasks.moveToArchive')}">${I18n.t('tasks.archive')}</button>
@@ -1994,8 +2061,10 @@
             const bubbleInner = trimmed
                 ? escapeHtml(entry.text)
                 : '<span class="journal-bubble-empty">' + I18n.t('tasks.noteEmpty') + '</span>';
+            const dateStr = escapeHtml(formatJournalDate(entry.created));
             wrap.innerHTML = `
-                <div class="note-toolbar">
+                <div class="journal-header">
+                    <span class="journal-date">${dateStr}</span>
                     <div class="journal-actions">
                         <button type="button" class="journal-mac-btn" onclick="restoreArchivedNote(${ai})">${I18n.t('tasks.restore')}</button>
                     </div>
