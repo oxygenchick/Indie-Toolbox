@@ -172,6 +172,8 @@
   "brief.editorHint": "Пишите текст как в обычном редакторе. Добавленные изображения можно перетаскивать в любое место страницы.",
   "brief.createTextBlockHere": "Создать текстовый блок",
   "brief.createImageBlockHere": "Создать блок изображений здесь",
+  "brief.typeSound": "Звук пишущей машинки",
+  "brief.typeSoundVolume": "Громкость машинки",
   "tasks.pageTitle": "Журнал приключений",
   "tasks.titleBarLinkFile": "Привязать файл",
   "tasks.connect": "Подключить",

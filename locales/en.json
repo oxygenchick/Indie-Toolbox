@@ -172,6 +172,8 @@
   "brief.editorHint": "Write text like in a regular editor. Added images can be dragged to any place on the page.",
   "brief.createTextBlockHere": "Create text block",
   "brief.createImageBlockHere": "Create image block here",
+  "brief.typeSound": "Typewriter sound",
+  "brief.typeSoundVolume": "Typewriter volume",
   "tasks.pageTitle": "Journey Book",
   "tasks.titleBarLinkFile": "Link a file",
   "tasks.connect": "Connect",

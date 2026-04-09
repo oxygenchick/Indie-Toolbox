@@ -20,6 +20,100 @@
         .mac-btn:active:not(:disabled) { background:#000; color:#fff; box-shadow:none; transform: translate(2px,2px); }
         .meta { margin-top: 8px; display:flex; gap:8px; align-items:center; }
         .meta input { border:2px inset #888; background:#fff; padding:4px 6px; width: 320px; }
+        .type-sound-row { margin-top: 8px; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+        .type-sound-row label { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: bold; cursor: pointer; user-select: none; }
+        .type-sound-row .type-sound-volume-label { gap: 8px; flex-wrap: wrap; }
+        .type-sound-row .type-sound-vol-slider-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .type-sound-row .type-sound-vol-display {
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 2.75em;
+        }
+        /* Checkbox + range: System 7–style (same spirit as AudioEditor.html) */
+        .type-sound-row input[type="checkbox"] {
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            width: 14px;
+            height: 14px;
+            margin: 0;
+            border: 2px solid #000;
+            border-radius: 0;
+            background: #fff;
+            cursor: pointer;
+            flex-shrink: 0;
+            vertical-align: middle;
+            box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.35);
+        }
+        .type-sound-row input[type="checkbox"]:checked {
+            background-color: #000;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6 L5 8.5 L9.5 3' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='square' stroke-linejoin='miter'/%3E%3C/svg%3E");
+            background-size: 12px 12px;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        .type-sound-row input[type="checkbox"]:focus-visible {
+            outline: 2px solid #000;
+            outline-offset: 2px;
+        }
+        /* Volume slider: rectangular trough + thumb (System 7–style, matches AudioEditor) */
+        .type-sound-row input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 160px;
+            max-width: 100%;
+            height: 22px;
+            margin: 0;
+            background: transparent;
+            cursor: pointer;
+            vertical-align: middle;
+        }
+        .type-sound-row input[type="range"]:focus {
+            outline: none;
+        }
+        .type-sound-row input[type="range"]:focus-visible {
+            outline: 2px solid #000;
+            outline-offset: 2px;
+        }
+        .type-sound-row input[type="range"]::-webkit-slider-runnable-track {
+            height: 8px;
+            border: 2px inset #888;
+            background: #fff;
+            box-sizing: border-box;
+        }
+        .type-sound-row input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 10px;
+            height: 16px;
+            margin-top: -6px;
+            border: 2px solid #000;
+            border-radius: 0;
+            background: #fff;
+            box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+            box-sizing: border-box;
+        }
+        .type-sound-row input[type="range"]::-moz-range-track {
+            height: 8px;
+            border: 2px inset #888;
+            background: #fff;
+            box-sizing: border-box;
+        }
+        .type-sound-row input[type="range"]::-moz-range-thumb {
+            -moz-appearance: none;
+            width: 10px;
+            height: 16px;
+            border: 2px solid #000;
+            border-radius: 0;
+            background: #fff;
+            box-shadow: 1px 1px 0 rgba(0, 0, 0, 0.45);
+            box-sizing: border-box;
+        }
+        .type-sound-row .type-sound-volume-label[hidden] { display: none !important; }
         .hint { font-size:12px; color:#555; margin-top:8px; }
 
         .sheet { width: 100%; min-height: 1200px; margin: 0 auto; background:#fff; border:2px solid #000; box-shadow:2px 2px 0 #000; padding: 78px 72px 78px; }
@@ -278,6 +372,19 @@
                 <label data-i18n="brief.title">Title:</label>
                 <input id="brief-title" type="text" data-i18n-placeholder="brief.titlePlaceholder" placeholder="Technical specification">
             </div>
+            <div class="type-sound-row">
+                <label>
+                    <input type="checkbox" id="type-sound-enabled">
+                    <span data-i18n="brief.typeSound">Typewriter sound</span>
+                </label>
+                <label class="type-sound-volume-label" id="type-sound-volume-wrap" hidden>
+                    <span data-i18n="brief.typeSoundVolume">Typewriter volume</span>
+                    <span class="type-sound-vol-slider-group">
+                        <input type="range" id="type-sound-volume" min="0" max="100" value="80" data-i18n-aria-label="brief.typeSoundVolume" aria-label="Typewriter volume">
+                        <span class="type-sound-vol-display" id="type-sound-volume-pct" aria-hidden="true">80%</span>
+                    </span>
+                </label>
+            </div>
             <div class="hint" data-i18n="brief.editorHint">Write text and add images. Blocks are stacked vertically.</div>
         </div>
         <div class="sheet">
@@ -317,8 +424,34 @@
         let topZ = 10;
         let projectFileHandle = null;
 
+        const TYPE_SOUND_URLS = [1, 2, 3, 4, 5, 6].map((n) => 'assets/type_sound/type_sound_0' + n + '.wav');
+        const TYPE_SOUND_LS_ON = 'itb_brief_type_sound_on';
+        const TYPE_SOUND_LS_VOL = 'itb_brief_type_sound_vol';
+        /** ±cents; subtle pitch wobble per keystroke (detune does not change playback speed). */
+        const TYPE_SOUND_DETUNE_MAX = 38;
+        let typeSoundCtx = null;
+        const typeSoundBuffers = [];
+        let typeSoundDecodePromise = null;
+        let typeSoundLastIdx = -1;
+        function pickTypeSoundIndex() {
+            const n = TYPE_SOUND_URLS.length;
+            if (n <= 1) return 0;
+            let i;
+            if (typeSoundLastIdx < 0) i = Math.floor(Math.random() * n);
+            else {
+                i = Math.floor(Math.random() * (n - 1));
+                if (i >= typeSoundLastIdx) i++;
+            }
+            typeSoundLastIdx = i;
+            return i;
+        }
+
         const flow = document.getElementById('flow');
         const briefTitle = document.getElementById('brief-title');
+        const typeSoundEnabledEl = document.getElementById('type-sound-enabled');
+        const typeSoundVolumeWrap = document.getElementById('type-sound-volume-wrap');
+        const typeSoundVolumeEl = document.getElementById('type-sound-volume');
+        const typeSoundVolumePct = document.getElementById('type-sound-volume-pct');
         const sheet = document.querySelector('.sheet');
         const dropIndicator = document.createElement('div');
         dropIndicator.className = 'drop-indicator';
@@ -327,6 +460,122 @@
         function syncHintLabels() {
             dropIndicator.textContent = I18n.t('brief.createImageBlockHere');
         }
+
+        function syncTypeSoundVolumeWrap() {
+            if (!typeSoundVolumeWrap || !typeSoundEnabledEl) return;
+            typeSoundVolumeWrap.hidden = !typeSoundEnabledEl.checked;
+        }
+        function syncTypeSoundVolumePct() {
+            if (!typeSoundVolumePct || !typeSoundVolumeEl) return;
+            typeSoundVolumePct.textContent = (parseInt(typeSoundVolumeEl.value, 10) || 0) + '%';
+        }
+        function loadTypeSoundPrefs() {
+            if (!typeSoundEnabledEl || !typeSoundVolumeEl) return;
+            try {
+                typeSoundEnabledEl.checked = localStorage.getItem(TYPE_SOUND_LS_ON) === '1';
+                const v = localStorage.getItem(TYPE_SOUND_LS_VOL);
+                if (v != null && v !== '') typeSoundVolumeEl.value = String(clamp(parseInt(v, 10) || 80, 0, 100));
+            } catch (e) { /* ignore */ }
+            syncTypeSoundVolumeWrap();
+            syncTypeSoundVolumePct();
+            if (typeSoundEnabledEl.checked) prefetchTypeSoundBuffers();
+        }
+        function getTypeSoundContext() {
+            if (typeSoundCtx) return typeSoundCtx;
+            const Ctor = window.AudioContext || window.webkitAudioContext;
+            if (!Ctor) return null;
+            typeSoundCtx = new Ctor();
+            return typeSoundCtx;
+        }
+        function typeSoundBuffersReady() {
+            return typeSoundBuffers.length === TYPE_SOUND_URLS.length && typeSoundBuffers.every((b) => b);
+        }
+        function prefetchTypeSoundBuffers() {
+            if (typeSoundBuffersReady()) return Promise.resolve();
+            if (typeSoundDecodePromise) return typeSoundDecodePromise;
+            typeSoundDecodePromise = (async () => {
+                const ctx = getTypeSoundContext();
+                if (!ctx) return;
+                const list = await Promise.all(TYPE_SOUND_URLS.map((url) => fetch(url).then((r) => r.arrayBuffer())));
+                typeSoundBuffers.length = 0;
+                for (const ab of list) {
+                    const buf = await new Promise((resolve, reject) => {
+                        ctx.decodeAudioData(ab.slice(0), resolve, reject);
+                    });
+                    typeSoundBuffers.push(buf);
+                }
+            })().catch(() => {
+                typeSoundDecodePromise = null;
+                typeSoundBuffers.length = 0;
+            });
+            return typeSoundDecodePromise;
+        }
+        function playTypewriterSoundWithElement(vol) {
+            const url = TYPE_SOUND_URLS[pickTypeSoundIndex()];
+            const a = new Audio(url);
+            a.volume = vol;
+            const cents = (Math.random() * 2 - 1) * TYPE_SOUND_DETUNE_MAX;
+            a.playbackRate = Math.pow(2, cents / 1200);
+            a.play().catch(() => {});
+        }
+        function playTypewriterSound() {
+            if (!typeSoundEnabledEl || !typeSoundEnabledEl.checked || !TYPE_SOUND_URLS.length) return;
+            const vol = (parseInt(typeSoundVolumeEl.value, 10) || 0) / 100;
+            if (vol <= 0) return;
+            const ctx = getTypeSoundContext();
+            if (!ctx || !typeSoundBuffersReady()) {
+                prefetchTypeSoundBuffers();
+                playTypewriterSoundWithElement(vol);
+                return;
+            }
+            if (ctx.state === 'suspended') void ctx.resume().catch(() => {});
+            const buf = typeSoundBuffers[pickTypeSoundIndex()];
+            if (!buf) return;
+            const src = ctx.createBufferSource();
+            src.buffer = buf;
+            src.detune.value = (Math.random() * 2 - 1) * TYPE_SOUND_DETUNE_MAX;
+            const g = ctx.createGain();
+            g.gain.value = vol;
+            src.connect(g);
+            g.connect(ctx.destination);
+            src.start(0);
+        }
+        function isTypeSoundTarget(el) {
+            if (!el || el.nodeType !== 1) return false;
+            if (el.id === 'brief-title') return true;
+            if (el.classList && el.classList.contains('text-sec')) return true;
+            if (el.id === 'annot-text-editor') {
+                const ab = document.getElementById('annot-backdrop');
+                return ab && ab.style.display === 'flex';
+            }
+            return false;
+        }
+        function isTypeSoundKey(e) {
+            if (e.repeat) return false;
+            if (e.ctrlKey || e.metaKey || e.altKey) return false;
+            if (e.isComposing) return false;
+            const k = e.key;
+            if (k === 'Backspace' || k === 'Delete' || k === 'Enter') return true;
+            return k.length === 1;
+        }
+        if (typeSoundEnabledEl && typeSoundVolumeEl) {
+            typeSoundEnabledEl.addEventListener('change', () => {
+                try { localStorage.setItem(TYPE_SOUND_LS_ON, typeSoundEnabledEl.checked ? '1' : '0'); } catch (e) { /* ignore */ }
+                syncTypeSoundVolumeWrap();
+                if (typeSoundEnabledEl.checked) prefetchTypeSoundBuffers();
+            });
+            typeSoundVolumeEl.addEventListener('input', () => {
+                syncTypeSoundVolumePct();
+                try { localStorage.setItem(TYPE_SOUND_LS_VOL, typeSoundVolumeEl.value); } catch (e) { /* ignore */ }
+            });
+        }
+        window.addEventListener('keydown', (e) => {
+            if (!typeSoundEnabledEl || !typeSoundEnabledEl.checked) return;
+            if (!isTypeSoundTarget(e.target)) return;
+            if (!isTypeSoundKey(e)) return;
+            playTypewriterSound();
+        }, true);
+        loadTypeSoundPrefs();
 
         function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
         function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
