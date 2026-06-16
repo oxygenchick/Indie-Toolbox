@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script>document.documentElement.classList.add('i18n-pending');</script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StoryBoard</title>
+    <link rel="stylesheet" href="dither-ui.css">
+    <style>
+        @font-face { font-family: 'Chicago'; src: url('https://cdn.jsdelivr.net/gh/nicokimmel/chicago-pixel-font@main/Chicago.woff2') format('woff2'); }
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body {
+            font-family: 'Chicago', 'VT323', 'Geneva', monospace;
+            font-size: 13px;
+            background: #c0c0c0;
+            color: #000;
+            -webkit-font-smoothing: none;
+            -moz-osx-font-smoothing: none;
+        }
+
+        .desktop {
+            height: 100%;
+            padding: 12px;
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 12px;
+            min-height: 0;
+        }
+
+        .mac-window {
+            background: #fff;
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0 #000;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        .title-bar {
+            height: 22px;
+            background: #fff;
+            border-bottom: 2px solid #000;
+            display: flex;
+            align-items: center;
+            padding: 0 4px;
+            position: relative;
+            flex-shrink: 0;
+        }
+        .title-bar-lines {
+            position: absolute;
+            left: 4px;
+            right: 4px;
+            top: 3px;
+            bottom: 3px;
+            z-index: 0;
+            background: repeating-linear-gradient(to bottom, #000 0px, #000 1px, #fff 1px, #fff 3px);
+        }
+        .title-bar-text {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            transform: translateX(-50%);
+            z-index: 1;
+            display: flex;
+            align-items: center;
+            background: #fff;
+            padding: 0 10px;
+            font-size: 13px;
+            font-weight: bold;
+            white-space: nowrap;
+            pointer-events: none;
+            max-width: calc(100% - 48px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .window-content {
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 0;
+            flex: 1;
+        }
+
+        .mac-btn {
+            font-family: inherit;
+            font-size: 13px;
+            padding: 5px 12px;
+            border: 2px solid #000;
+            background: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: var(--mac-push-shadow);
+            white-space: nowrap;
+        }
+        .mac-btn:hover:not(:disabled) {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .mac-btn:active:not(:disabled) {
+            background: #000;
+            color: #fff;
+            box-shadow: none;
+            transform: translate(2px, 2px);
+        }
+        .mac-btn:disabled {
+            color: #999;
+            border-color: #999;
+            cursor: default;
+            box-shadow: 1px 1px 0 #bbb;
+        }
+
+        .file-input {
+            width: 100%;
+            border: 2px inset #888;
+            background: #fff;
+            padding: 4px;
+            font-family: inherit;
+            font-size: 12px;
+        }
+
+        .list {
+            border: 2px inset #888;
+            background: #fff;
+            padding: 8px;
+            overflow: auto;
+            min-height: 0;
+            flex: 1;
+        }
+        .list-item {
+            border: 2px solid #000;
+            background: #fff;
+            padding: 8px;
+            margin-bottom: 8px;
+        }
+        .list-item:last-child { margin-bottom: 0; }
+
+        .thumb {
+            width: 100%;
+            height: 118px;
+            object-fit: contain;
+            border: 2px inset #888;
+            background: #fff;
+            margin-bottom: 6px;
+        }
+        .meta {
+            font-size: 11px;
+            margin-bottom: 6px;
+            color: #333;
+            word-break: break-all;
+        }
+        .field {
+            display: grid;
+            gap: 4px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .field textarea,
+        .field input {
+            border: 2px inset #888;
+            background: #fff;
+            padding: 4px 6px;
+            font-family: inherit;
+            font-size: 12px;
+        }
+        .field textarea { min-height: 58px; resize: vertical; }
+        .field input { width: 94px; }
+
+        .item-actions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .mini-btn {
+            font-family: inherit;
+            font-size: 12px;
+            padding: 3px 8px;
+            border: 2px solid #000;
+            background: #fff;
+            cursor: pointer;
+            font-weight: bold;
+            box-shadow: 1px 1px 0 #000;
+        }
+        .mini-btn:hover:not(:disabled) {
+            background-color: #fff;
+            background-image: var(--dither-dot-hover);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .mini-btn:active:not(:disabled) {
+            background: #000;
+            color: #fff;
+            box-shadow: none;
+            transform: translate(1px, 1px);
+        }
+        .mini-btn:disabled { opacity: 0.5; cursor: default; }
+
+        .viewport {
+            border: 2px inset #888;
+            background: #1a1a1a;
+            min-height: 320px;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .viewport img {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .placeholder {
+            color: #ddd;
+            font-size: 12px;
+            text-align: center;
+            padding: 14px;
+        }
+        .caption,
+        .status {
+            border: 2px inset #888;
+            background: #fff;
+            padding: 8px;
+            font-size: 12px;
+        }
+        .caption {
+            min-height: 58px;
+            white-space: pre-wrap;
+        }
+        .controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        .controls-right {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        #print-root { display: none; }
+
+        @media print {
+            @page { size: A4 landscape; margin: 6mm; }
+            body {
+                background: #fff;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+            .desktop { display: none !important; }
+            #print-root {
+                display: block !important;
+                font-family: Arial, sans-serif;
+                color: #000;
+            }
+            .print-page { page-break-after: always; }
+            .print-page:last-child { page-break-after: auto; }
+            .print-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 3mm;
+            }
+            .print-cell {
+                border: none;
+                padding: 0.4mm;
+                min-height: 48mm;
+                display: grid;
+                grid-template-rows: auto auto;
+                gap: 0.2mm;
+            }
+            .print-cell img {
+                width: 100%;
+                height: auto;
+                max-height: 36mm;
+                object-fit: contain;
+                border: none;
+                display: block;
+                justify-self: stretch;
+            }
+            .print-meta {
+                font-size: 8.5pt;
+                line-height: 1.02;
+                white-space: pre-wrap;
+                word-break: break-word;
+            }
+            .print-meta .print-duration {
+                margin-top: 0.1mm;
+                font-weight: bold;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="desktop">
+        <section class="mac-window">
+            <div class="title-bar">
+                <div class="title-bar-lines"></div>
+                <div class="title-bar-text" data-i18n="story.libraryTitle">Image Library</div>
+            </div>
+            <div class="window-content">
+                <input id="file-input" class="file-input" type="file" multiple accept="image/*">
+                <div id="library-list" class="list"></div>
+            </div>
+        </section>
+
+        <section class="mac-window">
+            <div class="title-bar">
+                <div class="title-bar-lines"></div>
+                <div class="title-bar-text" data-i18n="story.playerTitle">Storyboard Player</div>
+            </div>
+            <div class="window-content">
+                <div class="viewport">
+                    <div class="placeholder" id="viewport-placeholder" data-i18n="story.viewportPlaceholder">Upload images and press Play.</div>
+                    <img id="viewport-image" alt="" hidden>
+                </div>
+                <div class="caption" id="viewport-caption" data-i18n="story.captionPlaceholder">Description appears here.</div>
+                <div class="controls">
+                    <div class="status" id="status-text" data-i18n="story.statusIdle">Idle</div>
+                    <div class="status" id="total-duration-text" data-i18n="story.totalDuration">Total duration: 0s</div>
+                    <div class="controls-right">
+                        <button id="save-json-btn" class="mac-btn" data-i18n="story.saveJson">Save JSON</button>
+                        <button id="open-json-btn" class="mac-btn" data-i18n="story.openJson">Open JSON</button>
+                        <button id="pdf-btn" class="mac-btn" data-i18n="story.exportPdf">Export PDF</button>
+                        <button id="play-btn" class="mac-btn" data-i18n="story.play">Play</button>
+                        <button id="stop-btn" class="mac-btn" data-i18n="story.stop">Stop</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+    <div id="print-root" aria-hidden="true"></div>
+
+    <script src="i18n.js"></script>
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const libraryList = document.getElementById('library-list');
+        const viewportImage = document.getElementById('viewport-image');
+        const viewportPlaceholder = document.getElementById('viewport-placeholder');
+        const viewportCaption = document.getElementById('viewport-caption');
+        const statusText = document.getElementById('status-text');
+        const totalDurationText = document.getElementById('total-duration-text');
+        const saveJsonBtn = document.getElementById('save-json-btn');
+        const openJsonBtn = document.getElementById('open-json-btn');
+        const pdfBtn = document.getElementById('pdf-btn');
+        const playBtn = document.getElementById('play-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const printRoot = document.getElementById('print-root');
+
+        const frames = [];
+        const STORAGE_KEY = 'indietoolbox_storyboard_frames_v1';
+        let idCounter = 1;
+        let currentTimer = null;
+        let isPlaying = false;
+        let currentProjectHandle = null;
+
+        function t(key, params) {
+            return I18n.t ? I18n.t(key, params) : key;
+        }
+
+        function tf(key, params) {
+            let template = t(key);
+            if (!params || typeof template !== 'string') return template;
+            Object.keys(params).forEach((name) => {
+                const token = `{${name}}`;
+                template = template.split(token).join(String(params[name]));
+            });
+            return template;
+        }
+
+        function swapFrames(a, b) {
+            const temp = frames[a];
+            frames[a] = frames[b];
+            frames[b] = temp;
+        }
+
+        function persistFrames() {
+            const payload = frames.map((frame) => ({
+                id: frame.id,
+                fileName: frame.fileName,
+                url: frame.url,
+                description: frame.description,
+                duration: frame.duration
+            }));
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
+            } catch (e) { /* ignore quota/private mode errors */ }
+        }
+
+        function restoreFrames() {
+            let raw = null;
+            try {
+                raw = localStorage.getItem(STORAGE_KEY);
+            } catch (e) {
+                raw = null;
+            }
+            if (!raw) return;
+
+            try {
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return;
+                parsed.forEach((item) => {
+                    const normalized = normalizeFrame(item, idCounter++);
+                    if (normalized) frames.push(normalized);
+                });
+                const maxId = frames.reduce((max, f) => Math.max(max, Number(f.id) || 0), 0);
+                idCounter = Math.max(idCounter, maxId + 1);
+            } catch (e) {
+                /* ignore invalid stored data */
+            }
+        }
+
+        function projectPayload() {
+            return {
+                app: 'StoryBoard',
+                version: 1,
+                exportedAt: new Date().toISOString(),
+                frames: frames.map((frame) => ({
+                    id: frame.id,
+                    fileName: frame.fileName,
+                    url: frame.url,
+                    description: frame.description,
+                    duration: frame.duration
+                }))
+            };
+        }
+
+        async function chooseProjectHandle() {
+            if (!window.showSaveFilePicker) return null;
+            return window.showSaveFilePicker({
+                suggestedName: 'storyboard.json',
+                types: [{
+                    description: t('story.projectFileKind'),
+                    accept: { 'application/json': ['.json'] }
+                }]
+            });
+        }
+
+        async function saveProjectJsonToHandle(handle) {
+            const writable = await handle.createWritable();
+            await writable.write(JSON.stringify(projectPayload(), null, 2));
+            await writable.close();
+        }
+
+        async function saveProjectJson() {
+            if (!frames.length) return;
+            if (!window.showSaveFilePicker) {
+                alert(t('story.fileApiUnsupported'));
+                return;
+            }
+            try {
+                if (!currentProjectHandle) {
+                    currentProjectHandle = await chooseProjectHandle();
+                    if (!currentProjectHandle) return;
+                }
+                await saveProjectJsonToHandle(currentProjectHandle);
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;
+                alert(t('story.saveFailed'));
+            }
+        }
+
+        function replaceFrames(nextFrames) {
+            frames.length = 0;
+            nextFrames.forEach((frame) => frames.push(frame));
+            const maxId = frames.reduce((max, f) => Math.max(max, Number(f.id) || 0), 0);
+            idCounter = Math.max(1, maxId + 1);
+            stopPlayback();
+            resetViewport();
+            renderLibrary();
+            updateTotalDuration();
+            persistFrames();
+        }
+
+        async function openProjectJson(file, handle) {
+            const text = await readFileText(file);
+            const parsed = JSON.parse(text);
+            const sourceFrames = Array.isArray(parsed)
+                ? parsed
+                : (parsed && Array.isArray(parsed.frames) ? parsed.frames : null);
+            if (!sourceFrames) throw new Error('invalid');
+
+            const nextFrames = [];
+            sourceFrames.forEach((item) => {
+                const normalized = normalizeFrame(item, nextFrames.length + 1);
+                if (normalized) nextFrames.push(normalized);
+            });
+            replaceFrames(nextFrames);
+            if (handle) currentProjectHandle = handle;
+        }
+
+        function fileToDataUrl(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error || new Error('read failed'));
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function readFileText(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(reader.error || new Error('read failed'));
+                reader.readAsText(file, 'utf-8');
+            });
+        }
+
+        function normalizeFrame(item, fallbackId) {
+            if (!item || typeof item !== 'object') return null;
+            if (typeof item.url !== 'string' || !item.url) return null;
+            const duration = Number(item.duration);
+            return {
+                id: Number.isFinite(item.id) ? item.id : fallbackId,
+                fileName: typeof item.fileName === 'string' && item.fileName.trim() ? item.fileName : 'image',
+                url: item.url,
+                description: typeof item.description === 'string' ? item.description : '',
+                duration: Number.isFinite(duration) && duration > 0 ? duration : 1
+            };
+        }
+
+        function formatSeconds(value) {
+            const rounded = Math.round(value * 10) / 10;
+            return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+        }
+
+        function getTotalDuration() {
+            return frames.reduce((sum, frame) => sum + (Number(frame.duration) || 0), 0);
+        }
+
+        function updateTotalDuration() {
+            totalDurationText.textContent = tf('story.totalDurationValue', {
+                sec: formatSeconds(getTotalDuration())
+            });
+        }
+
+        function renderLibrary() {
+            libraryList.innerHTML = '';
+            if (!frames.length) {
+                const empty = document.createElement('div');
+                empty.className = 'meta';
+                empty.textContent = t('story.libraryEmpty');
+                libraryList.appendChild(empty);
+                playBtn.disabled = true;
+                pdfBtn.disabled = true;
+                saveJsonBtn.disabled = true;
+                openJsonBtn.disabled = isPlaying;
+                updateTotalDuration();
+                return;
+            }
+            playBtn.disabled = isPlaying;
+            pdfBtn.disabled = isPlaying;
+            saveJsonBtn.disabled = isPlaying;
+            openJsonBtn.disabled = isPlaying;
+
+            frames.forEach((frame, index) => {
+                const item = document.createElement('div');
+                item.className = 'list-item';
+
+                const img = document.createElement('img');
+                img.className = 'thumb';
+                img.src = frame.url;
+                img.alt = frame.fileName;
+                item.appendChild(img);
+
+                const meta = document.createElement('div');
+                meta.className = 'meta';
+                meta.textContent = `${index + 1}. ${frame.fileName}`;
+                item.appendChild(meta);
+
+                const descField = document.createElement('label');
+                descField.className = 'field';
+                descField.innerHTML = `<span>${t('story.description')}</span>`;
+                const descInput = document.createElement('textarea');
+                descInput.value = frame.description;
+                descInput.disabled = isPlaying;
+                descInput.addEventListener('input', () => {
+                    frame.description = descInput.value;
+                    persistFrames();
+                });
+                descField.appendChild(descInput);
+                item.appendChild(descField);
+
+                const durField = document.createElement('label');
+                durField.className = 'field';
+                durField.innerHTML = `<span>${t('story.durationSec')}</span>`;
+                const durInput = document.createElement('input');
+                durInput.type = 'number';
+                durInput.min = '0.1';
+                durInput.step = '0.1';
+                durInput.value = String(frame.duration);
+                durInput.disabled = isPlaying;
+                durInput.addEventListener('change', () => {
+                    const next = Number(durInput.value);
+                    frame.duration = Number.isFinite(next) && next > 0 ? next : 1;
+                    durInput.value = String(frame.duration);
+                    updateTotalDuration();
+                    persistFrames();
+                });
+                durField.appendChild(durInput);
+                item.appendChild(durField);
+
+                const actions = document.createElement('div');
+                actions.className = 'item-actions';
+
+                const upBtn = document.createElement('button');
+                upBtn.className = 'mini-btn';
+                upBtn.textContent = t('story.up');
+                upBtn.disabled = index === 0 || isPlaying;
+                upBtn.addEventListener('click', () => {
+                    swapFrames(index, index - 1);
+                    renderLibrary();
+                    persistFrames();
+                });
+
+                const downBtn = document.createElement('button');
+                downBtn.className = 'mini-btn';
+                downBtn.textContent = t('story.down');
+                downBtn.disabled = index === frames.length - 1 || isPlaying;
+                downBtn.addEventListener('click', () => {
+                    swapFrames(index, index + 1);
+                    renderLibrary();
+                    persistFrames();
+                });
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'mini-btn';
+                removeBtn.textContent = t('story.remove');
+                removeBtn.disabled = isPlaying;
+                removeBtn.addEventListener('click', () => {
+                    frames.splice(index, 1);
+                    renderLibrary();
+                    updateTotalDuration();
+                    persistFrames();
+                    if (!frames.length && !isPlaying) resetViewport();
+                });
+
+                actions.appendChild(upBtn);
+                actions.appendChild(downBtn);
+                actions.appendChild(removeBtn);
+                item.appendChild(actions);
+                libraryList.appendChild(item);
+            });
+            updateTotalDuration();
+        }
+
+        function showFrame(frame, index) {
+            viewportPlaceholder.hidden = true;
+            viewportImage.hidden = false;
+            viewportImage.src = frame.url;
+            viewportImage.alt = frame.fileName;
+            viewportCaption.textContent = frame.description || t('story.noDescription');
+            statusText.textContent = tf('story.statusFrame', {
+                current: String(index + 1),
+                total: String(frames.length),
+                sec: String(frame.duration)
+            });
+        }
+
+        function playFrom(index) {
+            if (!isPlaying) return;
+            if (index >= frames.length) {
+                stopPlayback();
+                statusText.textContent = t('story.statusFinished');
+                return;
+            }
+            const frame = frames[index];
+            showFrame(frame, index);
+            currentTimer = setTimeout(() => playFrom(index + 1), frame.duration * 1000);
+        }
+
+        function startPlayback() {
+            if (!frames.length || isPlaying) return;
+            isPlaying = true;
+            playBtn.disabled = true;
+            renderLibrary();
+            playFrom(0);
+        }
+
+        function stopPlayback() {
+            isPlaying = false;
+            if (currentTimer) {
+                clearTimeout(currentTimer);
+                currentTimer = null;
+            }
+            playBtn.disabled = !frames.length;
+            renderLibrary();
+        }
+
+        function resetViewport() {
+            viewportImage.hidden = true;
+            viewportImage.src = '';
+            viewportPlaceholder.hidden = false;
+            viewportCaption.textContent = t('story.captionPlaceholder');
+            statusText.textContent = t('story.statusIdle');
+            updateTotalDuration();
+        }
+
+        function escapeHtml(value) {
+            return String(value)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;');
+        }
+
+        function buildPrintPages() {
+            printRoot.innerHTML = '';
+            const perPage = 8;
+            for (let start = 0; start < frames.length; start += perPage) {
+                const pageFrames = frames.slice(start, start + perPage);
+                const page = document.createElement('section');
+                page.className = 'print-page';
+                const grid = document.createElement('div');
+                grid.className = 'print-grid';
+
+                pageFrames.forEach((frame) => {
+                    const cell = document.createElement('article');
+                    cell.className = 'print-cell';
+                    const img = document.createElement('img');
+                    img.src = frame.url;
+                    img.alt = frame.fileName;
+
+                    const meta = document.createElement('div');
+                    meta.className = 'print-meta';
+                    const descRaw = frame.description && frame.description.trim() ? frame.description : t('story.noDescription');
+                    meta.innerHTML = `
+                        <div>${escapeHtml(descRaw)}</div>
+                        <div class="print-duration">${tf('story.durationOnly', { sec: formatSeconds(frame.duration) })}</div>
+                    `;
+
+                    cell.appendChild(img);
+                    cell.appendChild(meta);
+                    grid.appendChild(cell);
+                });
+
+                page.appendChild(grid);
+                printRoot.appendChild(page);
+            }
+        }
+
+        function exportPdf() {
+            if (!frames.length) return;
+            buildPrintPages();
+            window.print();
+            setTimeout(() => { printRoot.innerHTML = ''; }, 200);
+        }
+
+        fileInput.addEventListener('change', async (event) => {
+            const files = Array.from(event.target.files || []);
+            for (const file of files) {
+                if (!file.type.startsWith('image/')) continue;
+                let dataUrl = null;
+                try {
+                    dataUrl = await fileToDataUrl(file);
+                } catch (e) {
+                    continue;
+                }
+                frames.push({
+                    id: idCounter++,
+                    fileName: file.name,
+                    url: dataUrl,
+                    description: '',
+                    duration: 1
+                });
+            }
+            fileInput.value = '';
+            renderLibrary();
+            updateTotalDuration();
+            persistFrames();
+        });
+
+        pdfBtn.addEventListener('click', exportPdf);
+        saveJsonBtn.addEventListener('click', async () => {
+            await saveProjectJson();
+        });
+        openJsonBtn.addEventListener('click', async () => {
+            if (isPlaying) return;
+            if (!window.showOpenFilePicker) {
+                alert(t('story.fileApiUnsupported'));
+                return;
+            }
+            try {
+                const picks = await window.showOpenFilePicker({
+                    multiple: false,
+                    types: [{
+                        description: t('story.projectFileKind'),
+                        accept: { 'application/json': ['.json'] }
+                    }]
+                });
+                if (!picks || !picks.length) return;
+                const handle = picks[0];
+                const file = await handle.getFile();
+                await openProjectJson(file, handle);
+            } catch (e) {
+                if (e && e.name === 'AbortError') return;
+                alert(t('story.invalidJson'));
+            }
+        });
+        playBtn.addEventListener('click', startPlayback);
+        stopBtn.addEventListener('click', () => {
+            stopPlayback();
+            resetViewport();
+        });
+
+        window.addEventListener('message', (event) => {
+            if (!event || !event.data || event.data.type !== I18n.MSG_TYPE) return;
+            renderLibrary();
+            if (!isPlaying) resetViewport();
+            I18n.applyTo(document.body);
+            document.title = t('story.pageTitle');
+            updateTotalDuration();
+        });
+
+        (async function init() {
+            await I18n.init();
+            I18n.applyTo(document.body);
+            document.title = t('story.pageTitle');
+            restoreFrames();
+            renderLibrary();
+            resetViewport();
+        })();
+    </script>
+</body>
+</html>
