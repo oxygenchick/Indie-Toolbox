@@ -242,6 +242,34 @@
             max-height: 100%;
             display: block;
         }
+        #crop-canvas {
+            position: absolute;
+            display: none;
+            touch-action: none;
+            cursor: default;
+            z-index: 2;
+        }
+        #crop-canvas.is-active {
+            display: block;
+        }
+
+        .crop-bar {
+            display: none;
+            gap: 8px;
+            padding: 8px 16px;
+            align-items: center;
+            border-top: 1px solid #ccc;
+            background: #fff;
+            flex-wrap: wrap;
+        }
+        .crop-bar.is-visible {
+            display: flex;
+        }
+        .crop-bar .crop-hint {
+            font-size: 11px;
+            color: #555;
+            margin-left: auto;
+        }
 
         .controls-bar {
             padding: 8px 16px;
@@ -477,6 +505,7 @@
         <div class="window-content window-content--editor">
             <div class="preview-wrap" id="preview-wrap">
                 <video id="video" preload="metadata"></video>
+                <canvas id="crop-canvas"></canvas>
                 <div class="progress-overlay" id="progress" style="display:none">
                     <div id="progress-processing" data-i18n="video.processing">Processing…</div>
                     <div class="bar-bg"><div class="bar-fill" id="progress-bar"></div></div>
@@ -500,8 +529,15 @@
                 </div>
             </div>
 
+            <div class="crop-bar" id="crop-bar">
+                <button class="mac-btn" onclick="applyVideoCrop()">&#10003; <span data-i18n="image.applyCrop">Apply Crop</span></button>
+                <button class="mac-btn" onclick="cancelVideoCrop()">&#10005; <span data-i18n="image.cancelCrop">Cancel</span></button>
+                <span class="crop-hint" data-i18n="image.cropHint">Drag corners to resize &bull; drag inside to move</span>
+            </div>
+
             <div class="controls-bar">
                 <button class="mac-btn" id="btn-play" onclick="togglePlay()">&#9654; Play</button>
+                <button class="mac-btn" id="btn-crop" onclick="enterVideoCropMode()">&#9986; <span data-i18n="image.btnCrop">Crop</span></button>
                 <div class="chk-row" style="margin-left:8px">
                     <input type="checkbox" id="chk-audio" checked onchange="toggleAudio()">
                     <label for="chk-audio" data-i18n="video.keepAudio">Keep audio</label>
@@ -549,6 +585,9 @@
     const progressEl = document.getElementById('progress');
     const progressBar = document.getElementById('progress-bar');
     const progressText = document.getElementById('progress-text');
+    const cropCanvas = document.getElementById('crop-canvas');
+    const cropCtx = cropCanvas.getContext('2d');
+    const previewWrap = document.getElementById('preview-wrap');
 
     let originalFile = null;
     let originalW = 0, originalH = 0;
@@ -558,12 +597,25 @@
     /** True after auto-pause at trim end — playhead snaps to trimEnd; Play jumps to trimStart. */
     let stoppedAtTrimEnd = false;
     let playheadRaf = null;
-    /** Seconds: treat as "at end of crop" for replay (keyframes / float). */
+    /** Seconds: treat as "at end of trim" for replay (keyframes / float). */
     const TRIM_END_EPS = 0.12;
     let ffmpeg = null;
     const MIN_TRIM_SEC = 1 / 25;
     let timelineDrag = null;
     let trimMoveState = null;
+
+    /** Applied spatial crop in source pixels; null = full frame. */
+    let videoCrop = null;
+    let cropActive = false;
+    let cropRect = { x: 0, y: 0, w: 0, h: 0 };
+    let cropDragType = null;
+    let cropDragStart = null;
+    let cropDisplayScale = 1;
+    let cropAntOffset = 0;
+    let cropAntRAF = null;
+    const CROP_HANDLE_SIZE = 7;
+    const CROP_HANDLE_HIT = 12;
+    const CROP_MIN = 10;
 
     window.togglePlay = togglePlay;
     window.onTrimInput = onTrimInput;
@@ -575,6 +627,301 @@
     window.resetSession = resetSession;
     window.closeEditor = closeEditor;
     window.exportVideo = exportVideo;
+    window.enterVideoCropMode = enterVideoCropMode;
+    window.applyVideoCrop = applyVideoCrop;
+    window.cancelVideoCrop = cancelVideoCrop;
+
+    function clamp(v, lo, hi) {
+        return Math.max(lo, Math.min(hi, v));
+    }
+
+    function getSourceCrop() {
+        if (videoCrop) return { ...videoCrop };
+        return { x: 0, y: 0, w: originalW, h: originalH };
+    }
+
+    function getEffectiveDimensions() {
+        const c = getSourceCrop();
+        return { w: c.w, h: c.h };
+    }
+
+    function getVideoDisplayRect() {
+        if (!originalW || !originalH) return null;
+        const wrapRect = previewWrap.getBoundingClientRect();
+        const wrapW = wrapRect.width;
+        const wrapH = wrapRect.height;
+        if (wrapW <= 0 || wrapH <= 0) return null;
+        const scale = Math.min(wrapW / originalW, wrapH / originalH);
+        const dispW = originalW * scale;
+        const dispH = originalH * scale;
+        const left = (wrapW - dispW) / 2;
+        const top = (wrapH - dispH) / 2;
+        return { scale, dispW, dispH, left, top };
+    }
+
+    function layoutCropCanvas() {
+        const dr = getVideoDisplayRect();
+        if (!dr) {
+            cropCanvas.classList.remove('is-active');
+            return;
+        }
+        cropDisplayScale = dr.scale;
+        cropCanvas.width = Math.max(1, Math.round(dr.dispW));
+        cropCanvas.height = Math.max(1, Math.round(dr.dispH));
+        cropCanvas.style.left = dr.left + 'px';
+        cropCanvas.style.top = dr.top + 'px';
+        cropCanvas.style.width = dr.dispW + 'px';
+        cropCanvas.style.height = dr.dispH + 'px';
+        if (cropActive) {
+            cropCanvas.classList.add('is-active');
+            drawVideoCropOverlay();
+        }
+    }
+
+    function syncVideoCropPreview() {
+        if (!videoCrop || cropActive) {
+            video.style.clipPath = '';
+            return;
+        }
+        const { x, y, w, h } = videoCrop;
+        const top = (y / originalH) * 100;
+        const right = ((originalW - x - w) / originalW) * 100;
+        const bottom = ((originalH - y - h) / originalH) * 100;
+        const left = (x / originalW) * 100;
+        video.style.clipPath = `inset(${top}% ${right}% ${bottom}% ${left}%)`;
+    }
+
+    function syncResizeFromEffective() {
+        const { w, h } = getEffectiveDimensions();
+        document.getElementById('resize-w').value = w;
+        document.getElementById('resize-h').value = h;
+    }
+
+    function drawVideoCropOverlay() {
+        if (!cropActive || !cropCanvas.width) return;
+        const cw = cropCanvas.width;
+        const ch = cropCanvas.height;
+        const ctx = cropCtx;
+        const cr = {
+            x: cropRect.x * cropDisplayScale,
+            y: cropRect.y * cropDisplayScale,
+            w: cropRect.w * cropDisplayScale,
+            h: cropRect.h * cropDisplayScale
+        };
+
+        ctx.clearRect(0, 0, cw, ch);
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, cw, ch);
+        ctx.rect(cr.x + cr.w, cr.y, -cr.w, cr.h);
+        ctx.fillStyle = 'rgba(255,255,255,0.55)';
+        ctx.fill('evenodd');
+        ctx.restore();
+
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 5]);
+        ctx.lineDashOffset = -cropAntOffset;
+        ctx.strokeRect(cr.x + 0.5, cr.y + 0.5, cr.w, cr.h);
+
+        ctx.strokeStyle = '#fff';
+        ctx.lineDashOffset = -cropAntOffset + 5;
+        ctx.strokeRect(cr.x + 0.5, cr.y + 0.5, cr.w, cr.h);
+        ctx.setLineDash([]);
+
+        const hs = CROP_HANDLE_SIZE;
+        ctx.fillStyle = '#fff';
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = 1.5;
+        const corners = [
+            [cr.x, cr.y],
+            [cr.x + cr.w, cr.y],
+            [cr.x, cr.y + cr.h],
+            [cr.x + cr.w, cr.y + cr.h]
+        ];
+        for (const [hx, hy] of corners) {
+            ctx.fillRect(hx - hs / 2, hy - hs / 2, hs, hs);
+            ctx.strokeRect(hx - hs / 2, hy - hs / 2, hs, hs);
+        }
+
+        const dimText = `${Math.round(cropRect.w)} \u00d7 ${Math.round(cropRect.h)}`;
+        ctx.font = 'bold 12px "Chicago", "VT323", monospace';
+        const tm = ctx.measureText(dimText);
+        const tx = cr.x + cr.w / 2 - tm.width / 2;
+        const ty = cr.y + cr.h + 16;
+        if (ty < ch - 4) {
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(tx - 3, ty - 11, tm.width + 6, 14);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+            ctx.strokeRect(tx - 3, ty - 11, tm.width + 6, 14);
+            ctx.fillStyle = '#000';
+            ctx.fillText(dimText, tx, ty);
+        }
+    }
+
+    function animateVideoCropAnts() {
+        if (!cropActive) return;
+        cropAntOffset = (cropAntOffset + 0.6) % 10;
+        drawVideoCropOverlay();
+        cropAntRAF = requestAnimationFrame(animateVideoCropAnts);
+    }
+
+    function nearCrop(x1, y1, x2, y2, r) {
+        return Math.abs(x1 - x2) < r && Math.abs(y1 - y2) < r;
+    }
+
+    function getVideoCropHit(mx, my) {
+        const cr = {
+            x: cropRect.x * cropDisplayScale,
+            y: cropRect.y * cropDisplayScale,
+            w: cropRect.w * cropDisplayScale,
+            h: cropRect.h * cropDisplayScale
+        };
+        const h = CROP_HANDLE_HIT;
+        if (nearCrop(mx, my, cr.x, cr.y, h)) return 'nw';
+        if (nearCrop(mx, my, cr.x + cr.w, cr.y, h)) return 'ne';
+        if (nearCrop(mx, my, cr.x, cr.y + cr.h, h)) return 'sw';
+        if (nearCrop(mx, my, cr.x + cr.w, cr.y + cr.h, h)) return 'se';
+        if (mx >= cr.x && mx <= cr.x + cr.w && my >= cr.y && my <= cr.y + cr.h) return 'move';
+        return null;
+    }
+
+    function getVideoCropCursor(type) {
+        const map = { nw: 'nwse-resize', se: 'nwse-resize', ne: 'nesw-resize', sw: 'nesw-resize', move: 'move' };
+        return map[type] || 'default';
+    }
+
+    function enterVideoCropMode() {
+        if (cropActive || !originalW) return;
+        if (!video.paused) video.pause();
+        syncVideoPlayButton();
+        cropActive = true;
+        const base = getSourceCrop();
+        cropRect = { x: base.x, y: base.y, w: base.w, h: base.h };
+        video.style.clipPath = '';
+        document.getElementById('crop-bar').classList.add('is-visible');
+        document.getElementById('btn-crop').disabled = true;
+        cropAntOffset = 0;
+        layoutCropCanvas();
+        animateVideoCropAnts();
+    }
+
+    function applyVideoCrop() {
+        const cx = Math.round(Math.max(0, cropRect.x));
+        const cy = Math.round(Math.max(0, cropRect.y));
+        const cw = Math.round(Math.min(cropRect.w, originalW - cx));
+        const ch = Math.round(Math.min(cropRect.h, originalH - cy));
+        if (cw < 1 || ch < 1) {
+            cancelVideoCrop();
+            return;
+        }
+        if (cx === 0 && cy === 0 && cw === originalW && ch === originalH) {
+            videoCrop = null;
+        } else {
+            videoCrop = { x: cx, y: cy, w: cw, h: ch };
+        }
+        exitVideoCropMode();
+        syncVideoCropPreview();
+        syncResizeFromEffective();
+        updateInfo();
+    }
+
+    function cancelVideoCrop() {
+        exitVideoCropMode();
+        syncVideoCropPreview();
+    }
+
+    function exitVideoCropMode() {
+        cropActive = false;
+        cropDragType = null;
+        cropDragStart = null;
+        if (cropAntRAF) {
+            cancelAnimationFrame(cropAntRAF);
+            cropAntRAF = null;
+        }
+        document.getElementById('crop-bar').classList.remove('is-visible');
+        document.getElementById('btn-crop').disabled = false;
+        cropCanvas.classList.remove('is-active');
+        cropCtx.clearRect(0, 0, cropCanvas.width, cropCanvas.height);
+        cropCanvas.style.cursor = 'default';
+    }
+
+    cropCanvas.addEventListener('pointerdown', e => {
+        if (!cropActive) return;
+        const rect = cropCanvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const hit = getVideoCropHit(mx, my);
+        if (hit) {
+            cropDragType = hit;
+            cropDragStart = { mx, my, rect: { ...cropRect } };
+            try { cropCanvas.setPointerCapture(e.pointerId); } catch (_) {}
+            e.preventDefault();
+        }
+    });
+
+    cropCanvas.addEventListener('pointermove', e => {
+        if (!cropActive) return;
+        const rect = cropCanvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        if (cropDragType && cropDragStart) {
+            const dx = (mx - cropDragStart.mx) / cropDisplayScale;
+            const dy = (my - cropDragStart.my) / cropDisplayScale;
+            const sr = cropDragStart.rect;
+            const imgW = originalW;
+            const imgH = originalH;
+
+            if (cropDragType === 'move') {
+                cropRect.x = clamp(sr.x + dx, 0, imgW - sr.w);
+                cropRect.y = clamp(sr.y + dy, 0, imgH - sr.h);
+                cropRect.w = sr.w;
+                cropRect.h = sr.h;
+            } else if (cropDragType === 'nw') {
+                const nx = clamp(sr.x + dx, 0, sr.x + sr.w - CROP_MIN);
+                const ny = clamp(sr.y + dy, 0, sr.y + sr.h - CROP_MIN);
+                cropRect.w = sr.x + sr.w - nx;
+                cropRect.h = sr.y + sr.h - ny;
+                cropRect.x = nx;
+                cropRect.y = ny;
+            } else if (cropDragType === 'ne') {
+                const ny = clamp(sr.y + dy, 0, sr.y + sr.h - CROP_MIN);
+                cropRect.w = clamp(sr.w + dx, CROP_MIN, imgW - sr.x);
+                cropRect.h = sr.y + sr.h - ny;
+                cropRect.y = ny;
+            } else if (cropDragType === 'sw') {
+                const nx = clamp(sr.x + dx, 0, sr.x + sr.w - CROP_MIN);
+                cropRect.w = sr.x + sr.w - nx;
+                cropRect.h = clamp(sr.h + dy, CROP_MIN, imgH - sr.y);
+                cropRect.x = nx;
+            } else if (cropDragType === 'se') {
+                cropRect.w = clamp(sr.w + dx, CROP_MIN, imgW - sr.x);
+                cropRect.h = clamp(sr.h + dy, CROP_MIN, imgH - sr.y);
+            }
+            drawVideoCropOverlay();
+        } else {
+            cropCanvas.style.cursor = getVideoCropCursor(getVideoCropHit(mx, my));
+        }
+    });
+
+    function endVideoCropDrag(e) {
+        if (!cropDragType) return;
+        try {
+            if (e && e.pointerId != null) cropCanvas.releasePointerCapture(e.pointerId);
+        } catch (_) {}
+        cropDragType = null;
+        cropDragStart = null;
+    }
+
+    cropCanvas.addEventListener('pointerup', endVideoCropDrag);
+    cropCanvas.addEventListener('pointercancel', endVideoCropDrag);
+    cropCanvas.addEventListener('lostpointercapture', () => {
+        cropDragType = null;
+        cropDragStart = null;
+    });
 
     uploadArea.addEventListener('click', () => {
         const input = document.createElement('input');
@@ -675,11 +1022,15 @@
         trimEnd = video.duration;
         stoppedAtTrimEnd = false;
         stopPlayheadRaf();
+        videoCrop = null;
+        exitVideoCropMode();
+        video.style.clipPath = '';
 
         document.getElementById('resize-w').value = originalW;
         document.getElementById('resize-h').value = originalH;
         syncTrimUI();
         updateInfo();
+        layoutCropCanvas();
 
         document.getElementById('editor-title').textContent = originalFile ? originalFile.name : I18n.t('video.editorTitle');
         document.getElementById('editor-window').classList.add('is-open');
@@ -937,9 +1288,13 @@
         layoutTimeline();
     });
 
-    window.addEventListener('resize', () => layoutTimeline());
+    window.addEventListener('resize', () => {
+        layoutTimeline();
+        layoutCropCanvas();
+    });
 
     function togglePlay() {
+        if (cropActive) return;
         if (video.paused) {
             if (video.currentTime < trimStart) video.currentTime = trimStart;
             if (stoppedAtTrimEnd || video.currentTime >= trimEnd - TRIM_END_EPS) video.currentTime = trimStart;
@@ -979,24 +1334,25 @@
     }
 
     function onResizeW() {
-        const w = parseInt(document.getElementById('resize-w').value) || originalW;
-        if (lockRatio && originalW) {
-            const h = Math.round(w * originalH / originalW);
+        const eff = getEffectiveDimensions();
+        const w = parseInt(document.getElementById('resize-w').value) || eff.w;
+        if (lockRatio && eff.w) {
+            const h = Math.round(w * eff.h / eff.w);
             document.getElementById('resize-h').value = h;
         }
     }
 
     function onResizeH() {
-        const h = parseInt(document.getElementById('resize-h').value) || originalH;
-        if (lockRatio && originalH) {
-            const w = Math.round(h * originalW / originalH);
+        const eff = getEffectiveDimensions();
+        const h = parseInt(document.getElementById('resize-h').value) || eff.h;
+        if (lockRatio && eff.h) {
+            const w = Math.round(h * eff.w / eff.h);
             document.getElementById('resize-w').value = w;
         }
     }
 
     function resetSize() {
-        document.getElementById('resize-w').value = originalW;
-        document.getElementById('resize-h').value = originalH;
+        syncResizeFromEffective();
     }
 
     function resetSession() {
@@ -1004,8 +1360,12 @@
         trimEnd = video.duration;
         stoppedAtTrimEnd = false;
         stopPlayheadRaf();
+        videoCrop = null;
+        exitVideoCropMode();
+        video.style.clipPath = '';
         syncTrimUI();
-        resetSize();
+        document.getElementById('resize-w').value = originalW;
+        document.getElementById('resize-h').value = originalH;
         document.getElementById('chk-audio').checked = true;
         video.muted = false;
         video.currentTime = 0;
@@ -1014,6 +1374,9 @@
     function closeEditor() {
         stopPlayheadRaf();
         stoppedAtTrimEnd = false;
+        videoCrop = null;
+        exitVideoCropMode();
+        video.style.clipPath = '';
         if (ffmpeg) {
             try { ffmpeg.terminate(); } catch (_) {}
             ffmpeg = null;
@@ -1035,11 +1398,15 @@
         const size = originalFile ? (originalFile.size / 1024 / 1024).toFixed(1) + ' MB' : '—';
         const ext = originalFile ? originalFile.name.split('.').pop().toUpperCase() : '—';
         const dash = '\u2014';
+        const eff = getEffectiveDimensions();
+        const resLabel = videoCrop
+            ? `${eff.w}\u00d7${eff.h} (${originalW}\u00d7${originalH})`
+            : `${originalW}\u00d7${originalH}`;
         bar.innerHTML = `
             <span><span class="label">${I18n.t('video.labelFile')}</span> <b>${originalFile ? originalFile.name : dash}</b></span>
             <span><span class="label">${I18n.t('video.labelSizeInfo')}</span> <b>${size}</b></span>
             <span><span class="label">${I18n.t('video.labelFormat')}</span> <b>${ext}</b></span>
-            <span><span class="label">${I18n.t('video.labelResolution')}</span> <b>${originalW}&#215;${originalH}</b></span>
+            <span><span class="label">${I18n.t('video.labelResolution')}</span> <b>${resLabel}</b></span>
             <span><span class="label">${I18n.t('video.labelDuration')}</span> <b>${formatTime(video.duration)}</b></span>
         `;
     }
@@ -1049,9 +1416,13 @@
             alert(I18n.t('video.alertNoVideo'));
             return;
         }
+        if (cropActive) {
+            alert(I18n.t('video.alertCropPending'));
+            return;
+        }
 
-        const outW = Math.max(2, (parseInt(document.getElementById('resize-w').value, 10) || originalW) & ~1);
-        const outH = Math.max(2, (parseInt(document.getElementById('resize-h').value, 10) || originalH) & ~1);
+        const outW = Math.max(2, (parseInt(document.getElementById('resize-w').value, 10) || getEffectiveDimensions().w) & ~1);
+        const outH = Math.max(2, (parseInt(document.getElementById('resize-h').value, 10) || getEffectiveDimensions().h) & ~1);
         const keepAudio = document.getElementById('chk-audio').checked;
         const start = Math.max(0, trimStart);
         const end = Math.min(video.duration || trimEnd, trimEnd);
@@ -1061,6 +1432,17 @@
         }
         const duration = end - start;
         const baseName = originalFile.name.replace(/\.[^.]+$/, '') || 'video';
+        const crop = getSourceCrop();
+        const cropX = Math.max(0, crop.x) & ~1;
+        const cropY = Math.max(0, crop.y) & ~1;
+        const cropW = Math.max(2, crop.w) & ~1;
+        const cropH = Math.max(2, crop.h) & ~1;
+        const vfParts = [];
+        if (videoCrop) {
+            vfParts.push(`crop=${cropW}:${cropH}:${cropX}:${cropY}`);
+        }
+        vfParts.push(`scale=${outW}:${outH}`);
+        const vf = vfParts.join(',');
 
         let saveHandle = null;
         if (window.showSaveFilePicker) {
@@ -1103,7 +1485,7 @@
                 '-ss', String(start),
                 '-i', 'input',
                 '-t', String(duration),
-                '-vf', `scale=${outW}:${outH}`,
+                '-vf', vf,
                 '-c:v', 'libx264', '-preset', 'fast', '-crf', '23',
                 '-movflags', '+faststart',
             ];

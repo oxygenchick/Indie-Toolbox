@@ -131,6 +131,7 @@
   "video.labelDuration": "Duration:",
   "video.alertFormat": "This video format can’t be played in the browser. Use an MP4 (H.264) or WebM file, or convert it outside this app first.",
   "video.alertNoVideo": "No video loaded.",
+  "video.alertCropPending": "Apply or cancel the crop before saving.",
   "video.alertTrimOrder": "Trim end must be greater than trim start.",
   "video.alertReadFail": "Could not read the video data. Try reloading the file (pick it again or drag it onto the window).",
   "video.alertEmpty": "The video data appears empty. Try choosing the file again.",
