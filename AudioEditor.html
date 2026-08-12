@@ -233,7 +233,6 @@
             margin: 8px 0;
             border: 2px inset #888;
             background: #fff;
-            cursor: ew-resize;
             overflow: hidden;
         }
 
@@ -241,6 +240,13 @@
             width: 100%;
             height: 120px;
             display: block;
+            cursor: grab;
+        }
+        .canvas-container canvas.is-grabbing {
+            cursor: grabbing;
+        }
+        .canvas-container canvas.is-playhead-grab {
+            cursor: ew-resize;
         }
 
         .controls-grid {
@@ -425,6 +431,27 @@
             background: #000;
             width: 0%;
             transition: none;
+            pointer-events: none;
+        }
+        .progress-playhead {
+            position: absolute;
+            top: -3px;
+            width: 10px;
+            height: calc(100% + 6px);
+            margin-left: -5px;
+            background: #000;
+            cursor: ew-resize;
+            z-index: 2;
+        }
+        .progress-playhead::before {
+            content: '';
+            position: absolute;
+            top: -6px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-top: 7px solid #000;
         }
 
         .info-text {
@@ -597,6 +624,7 @@
                 </div>
                 <div class="progress-outer" id="mix-progress-container">
                     <div class="progress-inner" id="mix-progress-bar"></div>
+                    <div class="progress-playhead" id="mix-playhead" style="left:0%"></div>
                 </div>
             </div>
         </div>
@@ -611,6 +639,7 @@
                 <span id="custom-tl-input-wrap" style="display:none">
                     <input type="number" id="custom-tl-length" min="1" step="1" value="60" onchange="setCustomTimelineLength(parseFloat(this.value))"> sec
                 </span>
+                <span class="tl-info" id="undo-hint"></span>
                 <span class="tl-info" id="tl-total-info"></span>
             </div>
             <div id="global-timeline-area"></div>
@@ -628,9 +657,17 @@
         let audioContext = null;
         let tracks = [];
         let activeTrackPlayers = new Map();
-        let mixPlayer = { isPlaying: false, startTime: 0, sources: [], raf: null };
+        let mixPlayer = { isPlaying: false, startTime: 0, sources: [], raf: null, seekOffset: 0 };
         let customTimelineEnabled = false;
         let customTimelineLength = 60;
+        let focusedTrackId = null;
+        const trackViewState = new Map();
+        const waveformSelections = new Map();
+        const trackPlayheadPos = new Map();
+        const undoStack = [];
+        const MAX_UNDO = 40;
+        let mixSaveFileHandle = null;
+        let lastMixSaveName = null;
 
         const fileInput = document.getElementById('fileInput');
         const uploadArea = document.getElementById('upload-area');
@@ -749,6 +786,11 @@
         }
 
         function applyTrackEnvelope(envelope, track, when, wallDur) {
+            if (track.fadesEnabled === false) {
+                envelope.gain.setValueAtTime(1, when);
+                envelope.gain.setValueAtTime(1, when + wallDur);
+                return;
+            }
             envelope.gain.setValueAtTime(0, when);
             envelope.gain.linearRampToValueAtTime(1, when + track.fadeInDuration);
             const fadeOutStart = when + wallDur - track.fadeOutDuration;
@@ -758,9 +800,194 @@
             }
         }
 
+        function toggleTrackFades(id, enabled) {
+            const track = tracks.find(t => t.id === id);
+            if (!track || track.fadesEnabled === enabled) return;
+            pushUndo('audio.undoToggleFades');
+            track.fadesEnabled = enabled;
+            const canvas = document.getElementById(`canvas-${id}`);
+            if (canvas) {
+                const ph = activeTrackPlayers.has(id) ? getTrackPlayPercent(id) : (trackPlayheadPos.get(id) || 0);
+                drawWaveform(canvas, track, ph);
+            }
+            renderGlobalTimeline(getMixPlayPercent());
+        }
+
+        function setFocusedTrack(id) {
+            focusedTrackId = id;
+        }
+
+        function updateTrackPlayButton(id) {
+            const btn = document.getElementById(`track-play-btn-${id}`);
+            if (!btn) return;
+            btn.innerHTML = activeTrackPlayers.has(id)
+                ? '&#10074;&#10074; ' + I18n.t('audio.pause')
+                : '&#9654; ' + I18n.t('audio.play');
+        }
+
+        function getTrackViewState(trackId) {
+            if (!trackViewState.has(trackId)) trackViewState.set(trackId, { zoom: 1, scroll: 0 });
+            return trackViewState.get(trackId);
+        }
+
+        function clampTrackViewScroll(track) {
+            const vs = getTrackViewState(track.id);
+            const viewDur = track.duration / vs.zoom;
+            vs.scroll = Math.max(0, Math.min(vs.scroll, Math.max(0, track.duration - viewDur)));
+        }
+
+        function getTrackViewRange(track) {
+            const vs = getTrackViewState(track.id);
+            clampTrackViewScroll(track);
+            const viewDur = track.duration / vs.zoom;
+            return { viewStart: vs.scroll, viewEnd: vs.scroll + viewDur, viewDur };
+        }
+
+        function timeToCanvasX(time, track, w) {
+            const { viewStart, viewDur } = getTrackViewRange(track);
+            return ((time - viewStart) / viewDur) * w;
+        }
+
+        function canvasXToTime(x, track, w) {
+            const { viewStart, viewDur } = getTrackViewRange(track);
+            return viewStart + (x / w) * viewDur;
+        }
+
+        function getMixPlayPercent() {
+            const totalDur = getMixDuration();
+            if (!totalDur) return null;
+            if (mixPlayer.isPlaying) {
+                const elapsed = audioContext.currentTime - mixPlayer.startTime;
+                const current = mixPlayer.seekOffset + elapsed;
+                return Math.min(Math.max(current / totalDur, 0), 1);
+            }
+            if (mixPlayer.seekOffset > 0) return mixPlayer.seekOffset / totalDur;
+            return null;
+        }
+
+        function getTrackPlayPercent(id) {
+            const p = activeTrackPlayers.get(id);
+            if (!p) return trackPlayheadPos.get(id) || 0;
+            const rate = getTrackPlaybackRate(p.track);
+            const elapsed = (audioContext.currentTime - p.startTime) * rate + p.seekOffset;
+            const dur = p.track.trimEnd - p.track.trimStart;
+            return Math.min(elapsed / dur, 1);
+        }
+
+        function updateMixPlayheadUI(pct) {
+            const pctStr = (pct * 100) + '%';
+            document.getElementById('mix-progress-bar').style.width = pctStr;
+            const ph = document.getElementById('mix-playhead');
+            if (ph) ph.style.left = pctStr;
+        }
+
         function initAudioContext() {
             if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
             return audioContext;
+        }
+
+        function cloneAudioBuffer(buffer) {
+            const ctx = initAudioContext();
+            const copy = ctx.createBuffer(buffer.numberOfChannels, buffer.length, buffer.sampleRate);
+            for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+                copy.copyToChannel(buffer.getChannelData(ch), ch);
+            }
+            return copy;
+        }
+
+        function cloneTrackForUndo(track) {
+            return {
+                id: track.id,
+                filename: track.filename,
+                buffer: cloneAudioBuffer(track.buffer),
+                duration: track.duration,
+                trimStart: track.trimStart,
+                trimEnd: track.trimEnd,
+                fadeInDuration: track.fadeInDuration,
+                fadeOutDuration: track.fadeOutDuration,
+                fadesEnabled: track.fadesEnabled,
+                volume: track.volume,
+                muted: track.muted,
+                offset: track.offset,
+                pitchSemitones: track.pitchSemitones,
+                reverb: track.reverb
+            };
+        }
+
+        function createUndoSnapshot() {
+            return {
+                tracks: tracks.map(cloneTrackForUndo),
+                selections: new Map([...waveformSelections.entries()].map(([k, v]) => [k, { ...v }])),
+                viewStates: new Map([...trackViewState.entries()].map(([k, v]) => [k, { ...v }])),
+                playheadPos: new Map(trackPlayheadPos),
+                focusedTrackId
+            };
+        }
+
+        function pushUndo(labelKey) {
+            if (!tracks.length) return;
+            initAudioContext();
+            undoStack.push({ labelKey, snapshot: createUndoSnapshot() });
+            if (undoStack.length > MAX_UNDO) undoStack.shift();
+            updateUndoHint();
+        }
+
+        function updateUndoHint() {
+            const el = document.getElementById('undo-hint');
+            if (!el) return;
+            if (!undoStack.length) {
+                el.textContent = I18n.t('audio.undoNothing');
+                return;
+            }
+            const label = I18n.t(undoStack[undoStack.length - 1].labelKey);
+            el.textContent = I18n.t('audio.undoHint').replace('{action}', label);
+        }
+
+        function stopAllTracks() {
+            [...activeTrackPlayers.keys()].forEach(id => stopTrack(id));
+        }
+
+        function restoreUndoSnapshot(snapshot) {
+            stopAllTracks();
+            tracks = snapshot.tracks.map(t => ({ ...t }));
+            waveformSelections.clear();
+            snapshot.selections.forEach((v, k) => waveformSelections.set(k, { ...v }));
+            trackViewState.clear();
+            snapshot.viewStates.forEach((v, k) => trackViewState.set(k, { ...v }));
+            trackPlayheadPos.clear();
+            snapshot.playheadPos.forEach((v, k) => trackPlayheadPos.set(k, v));
+            if (snapshot.focusedTrackId && tracks.some(t => t.id === snapshot.focusedTrackId)) {
+                focusedTrackId = snapshot.focusedTrackId;
+            } else if (tracks.length) {
+                focusedTrackId = tracks[0].id;
+            }
+        }
+
+        function undoLastAction() {
+            if (!undoStack.length) return;
+            const entry = undoStack.pop();
+            restoreUndoSnapshot(entry.snapshot);
+            updateUndoHint();
+            renderTracks();
+        }
+
+        function handleUndoLabel(mode) {
+            if (mode === 'fadeInEnd' || mode === 'fadeOutStart') return 'audio.undoAdjustFade';
+            if (mode === 'trimStart' || mode === 'trimEnd') return 'audio.undoAdjustTrim';
+            return 'audio.undoAdjustTrim';
+        }
+
+        function sanitizeFilename(name) {
+            return String(name).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').replace(/\s+/g, ' ').trim() || 'mix';
+        }
+
+        function getDefaultMixFilename() {
+            const stamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+            return sanitizeFilename('mix_' + stamp) + '.wav';
+        }
+
+        function getSuggestedMixFilename() {
+            return lastMixSaveName || getDefaultMixFilename();
         }
 
         function setupDragAndDrop() {
@@ -803,6 +1030,7 @@
                         trimEnd: buffer.duration,
                         fadeInDuration: defaultFade,
                         fadeOutDuration: defaultFade,
+                        fadesEnabled: true,
                         volume: 1,
                         muted: false,
                         offset: 0,
@@ -814,6 +1042,8 @@
                     alert(I18n.t('audio.couldNotLoad').replace('{name}', file.name));
                 }
             }
+            undoStack.length = 0;
+            updateUndoHint();
             renderTracks();
         }
 
@@ -854,6 +1084,56 @@
 
         let tlDragState = null;
         let tlTrackRects = [];
+        let mixSeekDrag = null;
+
+        function setupMixSeek() {
+            const container = document.getElementById('mix-progress-container');
+            const playhead = document.getElementById('mix-playhead');
+            if (!container) return;
+
+            const seekFromEvent = (e) => {
+                const rect = container.getBoundingClientRect();
+                const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+                return pct * getMixDuration();
+            };
+
+            const applySeek = (time, playAfter) => {
+                const totalDur = getMixDuration();
+                time = Math.max(0, Math.min(time, totalDur));
+                const wasPlaying = mixPlayer.isPlaying;
+                stopMix();
+                mixPlayer.seekOffset = time;
+                updateMixPlayheadUI(time / totalDur);
+                document.getElementById('mix-current').textContent = formatTime(time);
+                renderGlobalTimeline(time / totalDur);
+                if (playAfter || wasPlaying) playMix(time);
+            };
+
+            container.addEventListener('mousedown', (e) => {
+                if (e.target === playhead) {
+                    mixSeekDrag = { playAfter: mixPlayer.isPlaying };
+                } else {
+                    applySeek(seekFromEvent(e), mixPlayer.isPlaying);
+                    mixSeekDrag = { playAfter: mixPlayer.isPlaying };
+                }
+                e.preventDefault();
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (!mixSeekDrag) return;
+                const time = seekFromEvent(e);
+                const totalDur = getMixDuration();
+                updateMixPlayheadUI(time / totalDur);
+                document.getElementById('mix-current').textContent = formatTime(time);
+                renderGlobalTimeline(time / totalDur);
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (!mixSeekDrag) return;
+                applySeek(seekFromEvent(e), mixSeekDrag.playAfter);
+                mixSeekDrag = null;
+            });
+        }
 
         function renderGlobalTimeline(playPercent) {
             const area = document.getElementById('global-timeline-area');
@@ -924,23 +1204,25 @@
                 ctx.fillStyle = useDots ? getTimelineDotPattern(ctx, dpr) : '#c4c4c4';
                 ctx.fillRect(barX, y, barW, rowH);
 
-                const fadeInW = (track.fadeInDuration / totalDur) * w;
-                const fadeOutW = (track.fadeOutDuration / totalDur) * w;
+                if (track.fadesEnabled !== false) {
+                    const fadeInW = (track.fadeInDuration / totalDur) * w;
+                    const fadeOutW = (track.fadeOutDuration / totalDur) * w;
 
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
-                ctx.beginPath();
-                ctx.moveTo(barX, y + rowH);
-                ctx.lineTo(barX + fadeInW, y);
-                ctx.lineTo(barX, y);
-                ctx.closePath();
-                ctx.fill();
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.14)';
+                    ctx.beginPath();
+                    ctx.moveTo(barX, y + rowH);
+                    ctx.lineTo(barX + fadeInW, y);
+                    ctx.lineTo(barX, y);
+                    ctx.closePath();
+                    ctx.fill();
 
-                ctx.beginPath();
-                ctx.moveTo(barX + barW, y + rowH);
-                ctx.lineTo(barX + barW - fadeOutW, y);
-                ctx.lineTo(barX + barW, y);
-                ctx.closePath();
-                ctx.fill();
+                    ctx.beginPath();
+                    ctx.moveTo(barX + barW, y + rowH);
+                    ctx.lineTo(barX + barW - fadeOutW, y);
+                    ctx.lineTo(barX + barW, y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
 
                 ctx.strokeStyle = '#000';
                 ctx.lineWidth = 1;
@@ -960,19 +1242,19 @@
             if (playPercent != null && playPercent >= 0) {
                 const px = playPercent * w;
                 ctx.strokeStyle = '#000';
-                ctx.lineWidth = 2 * dpr;
-                ctx.setLineDash([3 * dpr, 3 * dpr]);
-                ctx.beginPath();
-                ctx.moveTo(px, 0);
-                ctx.lineTo(px, h);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                    ctx.lineWidth = 2 * dpr;
+                    ctx.setLineDash([3 * dpr, 3 * dpr]);
+                    ctx.beginPath();
+                    ctx.moveTo(px, 0);
+                    ctx.lineTo(px, h);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
 
-                ctx.fillStyle = '#000';
-                ctx.beginPath();
-                ctx.moveTo(px - 5 * dpr, 0);
-                ctx.lineTo(px + 5 * dpr, 0);
-                ctx.lineTo(px, 8 * dpr);
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.moveTo(px - 5 * dpr, 0);
+                    ctx.lineTo(px + 5 * dpr, 0);
+                    ctx.lineTo(px, 8 * dpr);
                 ctx.closePath();
                 ctx.fill();
             }
@@ -992,17 +1274,30 @@
                 const cr = canvas.getBoundingClientRect();
                 const mx = e.clientX - cr.left;
                 const my = e.clientY - cr.top;
+                const totalDur = getMixDuration();
 
                 for (let i = tlTrackRects.length - 1; i >= 0; i--) {
                     const r = tlTrackRects[i];
                     if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
                         const track = tracks.find(t => t.id === r.trackId);
                         if (!track) break;
-                        tlDragState = { trackId: r.trackId, startMx: mx, origOffset: track.offset || 0, scale: getMixDuration() };
+                        tlDragState = { type: 'offset', trackId: r.trackId, startMx: mx, origOffset: track.offset || 0, totalDur };
                         canvas.style.cursor = 'grabbing';
                         e.preventDefault();
                         return;
                     }
+                }
+
+                if (e.button === 0) {
+                    const time = (mx / cr.width) * totalDur;
+                    const wasPlaying = mixPlayer.isPlaying;
+                    stopMix();
+                    mixPlayer.seekOffset = time;
+                    updateMixPlayheadUI(time / totalDur);
+                    document.getElementById('mix-current').textContent = formatTime(time);
+                    renderGlobalTimeline(time / totalDur);
+                    tlDragState = { type: 'seek', playAfter: wasPlaying };
+                    e.preventDefault();
                 }
             });
 
@@ -1011,27 +1306,43 @@
                 const canvas = document.getElementById('global-tl-canvas');
                 if (!canvas) return;
                 const cr = canvas.getBoundingClientRect();
-                const dx = e.clientX - cr.left - tlDragState.startMx;
-                const pxPerSec = cr.width / tlDragState.scale;
+                const mx = e.clientX - cr.left;
+                const totalDur = getMixDuration();
+
+                if (tlDragState.type === 'seek') {
+                    const time = (mx / cr.width) * totalDur;
+                    updateMixPlayheadUI(time / totalDur);
+                    document.getElementById('mix-current').textContent = formatTime(time);
+                    renderGlobalTimeline(time / totalDur);
+                    return;
+                }
+
+                const dx = mx - tlDragState.startMx;
+                const pxPerSec = cr.width / tlDragState.totalDur;
                 let newOffset = Math.max(0, tlDragState.origOffset + dx / pxPerSec);
 
                 const track = tracks.find(t => t.id === tlDragState.trackId);
                 if (track) {
                     const span = getTrackWallDuration(track) + getReverbTailSeconds(track);
-                    newOffset = Math.min(newOffset, Math.max(0, tlDragState.scale - span));
-                    newOffset = Math.max(0, newOffset);
+                    newOffset = Math.min(newOffset, Math.max(0, totalDur - span));
                     track.offset = newOffset;
                     syncTrackInputs(tlDragState.trackId, track);
-                    renderGlobalTimeline();
+                    renderGlobalTimeline(getMixPlayPercent());
                 }
             });
 
-            window.addEventListener('mouseup', () => {
-                if (tlDragState) {
-                    tlDragState = null;
-                    const canvas = document.getElementById('global-tl-canvas');
-                    if (canvas) canvas.style.cursor = 'grab';
+            window.addEventListener('mouseup', (e) => {
+                if (!tlDragState) return;
+                const canvas = document.getElementById('global-tl-canvas');
+                if (tlDragState.type === 'seek') {
+                    const cr = canvas.getBoundingClientRect();
+                    const mx = e.clientX - cr.left;
+                    const time = (mx / cr.width) * getMixDuration();
+                    mixPlayer.seekOffset = time;
+                    if (tlDragState.playAfter) playMix(time);
                 }
+                tlDragState = null;
+                if (canvas) canvas.style.cursor = 'grab';
             });
         }
 
@@ -1066,6 +1377,8 @@
             tracks.forEach(track => {
                 const div = document.createElement('div');
                 div.className = 'track-card';
+                div.dataset.trackId = track.id;
+                div.addEventListener('mousedown', () => setFocusedTrack(track.id));
                 div.innerHTML = `
                     <div class="track-title-bar">
                         <div class="title-bar-controls">
@@ -1090,15 +1403,19 @@
                             <div><label>${I18n.t('audio.labelReverb')}</label><input type="range" min="0" max="100" data-reverb-slider value="${Math.round(Number(track.reverb) || 0)}" oninput="updateTrackReverb('${track.id}',parseFloat(this.value),this)"><span class="vol-display">${Math.round(Number(track.reverb) || 0)}%</span></div>
                             <div>
                                 <label class="mute-mix-spacer-label" aria-hidden="true">&nbsp;</label>
+                                <label class="mute-mix-control"><input type="checkbox" ${track.fadesEnabled !== false ? 'checked' : ''} onchange="toggleTrackFades('${track.id}', this.checked)"> ${I18n.t('audio.enableFades')}</label>
+                            </div>
+                            <div>
+                                <label class="mute-mix-spacer-label" aria-hidden="true">&nbsp;</label>
                                 <label class="mute-mix-control"><input type="checkbox" ${track.muted?'checked':''} onchange="updateTrack('${track.id}','muted',this.checked)"> ${I18n.t('audio.muteInMix')}</label>
                             </div>
                         </div>
                         <div class="action-buttons">
-                            <button class="mac-btn" onclick="toggleTrack('${track.id}')">&#9654; ${I18n.t('audio.playWFades')}</button>
-                            <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; ${I18n.t('audio.trim')}</button>
-                            <button class="mac-btn mac-btn-danger" onclick="deleteTrack('${track.id}')">&#9003; ${I18n.t('audio.delete')}</button>
+                            <button class="mac-btn" id="track-play-btn-${track.id}" onclick="toggleTrack('${track.id}')">&#9654; ${I18n.t('audio.play')}</button>
+                            <button class="mac-btn" onclick="deleteSelectedRegion('${track.id}')">&#9003; ${I18n.t('audio.deleteSelection')}</button>
+                            <button class="mac-btn" onclick="applyTrim('${track.id}')">&#9986; ${I18n.t('audio.trimTrack')}</button>
                         </div>
-                        <div class="info-text">${I18n.t('audio.infoThickLines')} — ${I18n.t('audio.pitchHint')}</div>
+                        <div class="info-text">${I18n.t('audio.infoWaveformHint')}</div>
                     </div>
                 `;
                 container.appendChild(div);
@@ -1106,7 +1423,12 @@
                 const canvas = document.getElementById(`canvas-${track.id}`);
                 drawWaveform(canvas, track);
                 setupDragHandles(track.id, canvas);
+                updateTrackPlayButton(track.id);
             });
+
+            if (tracks.length && (!focusedTrackId || !tracks.some(t => t.id === focusedTrackId))) {
+                focusedTrackId = tracks[0].id;
+            }
 
             renderGlobalTimeline();
         }
@@ -1121,15 +1443,17 @@
 
             if (!track.buffer) return;
 
+            const { viewStart, viewEnd, viewDur } = getTrackViewRange(track);
             const data = track.buffer.getChannelData(0);
-            const step = data.length / w;
 
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 1;
             ctx.beginPath();
             for (let x = 0; x < w; x++) {
-                const from = Math.floor(x * step);
-                const to = Math.min(Math.floor((x + 1) * step), data.length);
+                const t0 = viewStart + (x / w) * viewDur;
+                const t1 = viewStart + ((x + 1) / w) * viewDur;
+                const from = Math.max(0, Math.floor(t0 * data.length / track.duration));
+                const to = Math.min(data.length, Math.ceil(t1 * data.length / track.duration));
                 if (from >= data.length) break;
                 let minv = 1, maxv = -1;
                 for (let i = from; i < to; i++) {
@@ -1143,55 +1467,78 @@
             }
             ctx.stroke();
 
-            const startPx = (track.trimStart / track.duration) * w;
-            const endPx = (track.trimEnd / track.duration) * w;
-            const fadeInEndPx = ((track.trimStart + track.fadeInDuration) / track.duration) * w;
-            const fadeOutStartPx = ((track.trimEnd - track.fadeOutDuration) / track.duration) * w;
+            const startPx = timeToCanvasX(track.trimStart, track, w);
+            const endPx = timeToCanvasX(track.trimEnd, track, w);
+            const fadeInEndPx = timeToCanvasX(track.trimStart + track.fadeInDuration, track, w);
+            const fadeOutStartPx = timeToCanvasX(track.trimEnd - track.fadeOutDuration, track, w);
 
-            // selected region — hatching pattern
             ctx.save();
             ctx.globalAlpha = 0.12;
             ctx.fillStyle = '#000';
-            ctx.fillRect(startPx, 0, endPx - startPx, h);
+            const selLeft = Math.max(0, Math.min(startPx, endPx));
+            const selRight = Math.min(w, Math.max(startPx, endPx));
+            if (selRight > selLeft) ctx.fillRect(selLeft, 0, selRight - selLeft, h);
             ctx.restore();
 
-            // trim boundaries — thick
+            const sel = waveformSelections.get(track.id);
+            if (sel) {
+                const s0 = Math.min(sel.start, sel.end);
+                const s1 = Math.max(sel.start, sel.end);
+                const sx0 = timeToCanvasX(s0, track, w);
+                const sx1 = timeToCanvasX(s1, track, w);
+                if (sx1 > 0 && sx0 < w) {
+                    ctx.save();
+                    ctx.globalAlpha = 0.25;
+                    ctx.fillStyle = '#0066cc';
+                    ctx.fillRect(Math.max(0, sx0), 0, Math.min(w, sx1) - Math.max(0, sx0), h);
+                    ctx.restore();
+                }
+            }
+
             ctx.strokeStyle = '#000';
             ctx.lineWidth = 4;
             ctx.beginPath();
-            ctx.moveTo(startPx, 0); ctx.lineTo(startPx, h);
-            ctx.moveTo(endPx, 0); ctx.lineTo(endPx, h);
+            if (track.trimStart >= viewStart && track.trimStart <= viewEnd) {
+                ctx.moveTo(startPx, 0); ctx.lineTo(startPx, h);
+            }
+            if (track.trimEnd >= viewStart && track.trimEnd <= viewEnd) {
+                ctx.moveTo(endPx, 0); ctx.lineTo(endPx, h);
+            }
             ctx.stroke();
 
-            // fade in line — dashed
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([6, 4]);
-            ctx.beginPath();
-            ctx.moveTo(fadeInEndPx, 0); ctx.lineTo(fadeInEndPx, h);
-            ctx.stroke();
+            if (track.fadesEnabled !== false) {
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([6, 4]);
+                ctx.beginPath();
+                const fiEnd = track.trimStart + track.fadeInDuration;
+                const foStart = track.trimEnd - track.fadeOutDuration;
+                if (fiEnd >= viewStart && fiEnd <= viewEnd) {
+                    ctx.moveTo(fadeInEndPx, 0); ctx.lineTo(fadeInEndPx, h);
+                }
+                if (foStart >= viewStart && foStart <= viewEnd) {
+                    ctx.moveTo(fadeOutStartPx, 0); ctx.lineTo(fadeOutStartPx, h);
+                }
+                ctx.stroke();
+                ctx.setLineDash([]);
 
-            // fade out line — dashed
-            ctx.beginPath();
-            ctx.moveTo(fadeOutStartPx, 0); ctx.lineTo(fadeOutStartPx, h);
-            ctx.stroke();
-            ctx.setLineDash([]);
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(startPx, h);
+                ctx.lineTo(fadeInEndPx, 0);
+                ctx.stroke();
 
-            // fade envelope curves
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(startPx, h);
-            ctx.lineTo(fadeInEndPx, 0);
-            ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(fadeOutStartPx, 0);
+                ctx.lineTo(endPx, h);
+                ctx.stroke();
+            }
 
-            ctx.beginPath();
-            ctx.moveTo(fadeOutStartPx, 0);
-            ctx.lineTo(endPx, h);
-            ctx.stroke();
-
-            if (playPercent !== null) {
-                const playPx = startPx + (endPx - startPx) * playPercent;
+            const ph = playPercent !== null ? playPercent : (trackPlayheadPos.get(track.id) || 0);
+            const playTime = track.trimStart + (track.trimEnd - track.trimStart) * ph;
+            if (playTime >= viewStart && playTime <= viewEnd) {
+                const playPx = timeToCanvasX(playTime, track, w);
                 ctx.strokeStyle = '#000';
                 ctx.lineWidth = 3;
                 ctx.setLineDash([2, 2]);
@@ -1200,7 +1547,6 @@
                 ctx.stroke();
                 ctx.setLineDash([]);
 
-                // playhead triangle
                 ctx.fillStyle = '#000';
                 ctx.beginPath();
                 ctx.moveTo(playPx - 6, 0);
@@ -1212,63 +1558,267 @@
         }
 
         function setupDragHandles(trackId, canvas) {
-            let draggingType = null;
+            let dragMode = null;
+            let dragMoved = false;
+            let dragUndoPushed = false;
+            let panStartMx = 0;
+            let panOrigScroll = 0;
             const track = tracks.find(t => t.id === trackId);
 
-            canvas.addEventListener('mousedown', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const clickX = e.clientX - rect.left;
-                const w = rect.width;
-
+            const getHandlePositions = (cssW) => {
                 const positions = {
-                    trimStart: (track.trimStart / track.duration) * w,
-                    fadeInEnd: ((track.trimStart + track.fadeInDuration) / track.duration) * w,
-                    fadeOutStart: ((track.trimEnd - track.fadeOutDuration) / track.duration) * w,
-                    trimEnd: (track.trimEnd / track.duration) * w
+                    trimStart: timeToCanvasX(track.trimStart, track, cssW),
+                    trimEnd: timeToCanvasX(track.trimEnd, track, cssW)
                 };
+                if (track.fadesEnabled !== false) {
+                    positions.fadeInEnd = timeToCanvasX(track.trimStart + track.fadeInDuration, track, cssW);
+                    positions.fadeOutStart = timeToCanvasX(track.trimEnd - track.fadeOutDuration, track, cssW);
+                }
+                return positions;
+            };
 
+            const getPlayheadX = (cssW) => {
+                const ph = activeTrackPlayers.has(trackId)
+                    ? getTrackPlayPercent(trackId)
+                    : (trackPlayheadPos.get(trackId) || 0);
+                const playTime = track.trimStart + (track.trimEnd - track.trimStart) * ph;
+                return timeToCanvasX(playTime, track, cssW);
+            };
+
+            const isPlayheadHeadGrab = (clickX, clickY, cssW) => {
+                const playPx = getPlayheadX(cssW);
+                const { viewStart, viewEnd } = getTrackViewRange(track);
+                const ph = activeTrackPlayers.has(trackId) ? getTrackPlayPercent(trackId) : (trackPlayheadPos.get(trackId) || 0);
+                const playTime = track.trimStart + (track.trimEnd - track.trimStart) * ph;
+                if (playTime < viewStart || playTime > viewEnd) return false;
+                return clickY <= 14 && Math.abs(clickX - playPx) <= 10;
+            };
+
+            const nearestHandle = (clickX, cssW) => {
+                const positions = getHandlePositions(cssW);
                 let minDist = Infinity;
-                for (let type in positions) {
-                    const dist = Math.abs(clickX - positions[type]);
+                let type = null;
+                for (const key in positions) {
+                    const dist = Math.abs(clickX - positions[key]);
                     if (dist < minDist) {
                         minDist = dist;
-                        draggingType = type;
+                        type = key;
                     }
                 }
-                if (minDist > 25) draggingType = null;
+                return minDist <= 25 ? type : null;
+            };
+
+            const redraw = () => {
+                const ph = activeTrackPlayers.has(trackId) ? getTrackPlayPercent(trackId) : (trackPlayheadPos.get(trackId) || 0);
+                drawWaveform(canvas, track, ph);
+            };
+
+            canvas.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                setFocusedTrack(trackId);
+                const rect = canvas.getBoundingClientRect();
+                const mx = e.clientX - rect.left;
+                const mouseTime = canvasXToTime(mx, track, rect.width);
+                const vs = getTrackViewState(trackId);
+                if (e.ctrlKey || e.metaKey || Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+                    const factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+                    vs.scroll = mouseTime - (mouseTime - vs.scroll) * (vs.zoom / Math.max(1, Math.min(64, vs.zoom * factor)));
+                    vs.zoom = Math.max(1, Math.min(64, vs.zoom * factor));
+                } else {
+                    vs.scroll += (e.deltaX / rect.width) * (track.duration / vs.zoom);
+                }
+                clampTrackViewScroll(track);
+                redraw();
+            }, { passive: false });
+
+            canvas.addEventListener('mousedown', (e) => {
+                setFocusedTrack(trackId);
+                const rect = canvas.getBoundingClientRect();
+                const clickX = e.clientX - rect.left;
+                const clickY = e.clientY - rect.top;
+                dragMoved = false;
+
+                if (isPlayheadHeadGrab(clickX, clickY, rect.width)) {
+                    dragMode = 'playhead';
+                    canvas.classList.add('is-playhead-grab');
+                    e.preventDefault();
+                    return;
+                }
+
+                dragMode = nearestHandle(clickX, rect.width);
+                if (dragMode) {
+                    pushUndo(handleUndoLabel(dragMode));
+                    dragUndoPushed = true;
+                    e.preventDefault();
+                    return;
+                }
+
+                if (e.shiftKey) {
+                    dragMode = 'select';
+                    const t = canvasXToTime(clickX, track, rect.width);
+                    waveformSelections.set(trackId, { start: t, end: t });
+                    e.preventDefault();
+                    return;
+                }
+
+                if (waveformSelections.has(trackId)) {
+                    dragMode = 'clearSel';
+                    e.preventDefault();
+                    return;
+                }
+
+                const vs = getTrackViewState(trackId);
+                if (vs.zoom > 1) {
+                    dragMode = 'pan';
+                    panStartMx = clickX;
+                    panOrigScroll = vs.scroll;
+                    canvas.classList.add('is-grabbing');
+                    e.preventDefault();
+                }
             });
 
             const onMove = (e) => {
-                if (!draggingType) return;
+                if (!dragMode) return;
+                dragMoved = true;
                 const rect = canvas.getBoundingClientRect();
                 let clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-                const percent = clickX / rect.width;
-                const newTime = percent * track.duration;
+                const newTime = canvasXToTime(clickX, track, rect.width);
+
+                if (dragMode === 'pan') {
+                    const vs = getTrackViewState(trackId);
+                    const { viewDur } = getTrackViewRange(track);
+                    const dx = clickX - panStartMx;
+                    vs.scroll = panOrigScroll - (dx / rect.width) * viewDur;
+                    clampTrackViewScroll(track);
+                    redraw();
+                    return;
+                }
+
+                if (dragMode === 'playhead') {
+                    const rel = Math.max(0, Math.min(1, (newTime - track.trimStart) / (track.trimEnd - track.trimStart)));
+                    trackPlayheadPos.set(trackId, rel);
+                    redraw();
+                    return;
+                }
+
+                if (dragMode === 'select') {
+                    const sel = waveformSelections.get(trackId);
+                    if (sel) {
+                        sel.end = newTime;
+                        redraw();
+                    }
+                    return;
+                }
+
+                if (dragMode === 'clearSel') return;
 
                 const halfDur = () => (track.trimEnd - track.trimStart) / 2;
-                if (draggingType === 'trimStart') {
+                if (dragMode === 'trimStart') {
                     track.trimStart = Math.max(0, Math.min(newTime, track.trimEnd - 0.2));
                     clampFades(track);
-                } else if (draggingType === 'trimEnd') {
+                } else if (dragMode === 'trimEnd') {
                     track.trimEnd = Math.max(track.trimStart + 0.2, Math.min(newTime, track.duration));
                     clampFades(track);
-                } else if (draggingType === 'fadeInEnd') {
+                } else if (dragMode === 'fadeInEnd') {
                     track.fadeInDuration = Math.max(0, Math.min(newTime - track.trimStart, halfDur()));
-                } else if (draggingType === 'fadeOutStart') {
+                } else if (dragMode === 'fadeOutStart') {
                     track.fadeOutDuration = Math.max(0, Math.min(track.trimEnd - newTime, halfDur()));
                 }
 
-                drawWaveform(canvas, track);
+                redraw();
                 syncTrackInputs(trackId, track);
             };
 
-            window.addEventListener('mousemove', onMove);
-            window.addEventListener('mouseup', () => {
-                if (draggingType) {
-                    draggingType = null;
-                    renderGlobalTimeline();
+            const onUp = () => {
+                if (!dragMode) return;
+                canvas.classList.remove('is-grabbing', 'is-playhead-grab');
+
+                if (dragMode === 'playhead' && dragMoved) {
+                    const rel = trackPlayheadPos.get(trackId) || 0;
+                    playTrack(trackId, rel * (track.trimEnd - track.trimStart));
                 }
-            });
+
+                if (dragMode === 'select') {
+                    const sel = waveformSelections.get(trackId);
+                    if (sel && Math.abs(sel.end - sel.start) < 0.02) waveformSelections.delete(trackId);
+                }
+
+                if (dragMode === 'clearSel' && !dragMoved) {
+                    waveformSelections.delete(trackId);
+                    redraw();
+                }
+
+                if (dragUndoPushed && !dragMoved) {
+                    undoStack.pop();
+                    updateUndoHint();
+                }
+                dragUndoPushed = false;
+
+                if (dragMode && dragMode !== 'playhead' && dragMode !== 'select' && dragMode !== 'pan' && dragMode !== 'clearSel') {
+                    renderGlobalTimeline(getMixPlayPercent());
+                }
+
+                dragMode = null;
+            };
+
+            window.addEventListener('mousemove', onMove);
+            window.addEventListener('mouseup', onUp);
+        }
+
+        function deleteSelectedRegion(trackId) {
+            const track = tracks.find(t => t.id === trackId);
+            const sel = waveformSelections.get(trackId);
+            if (!track || !sel) return;
+
+            let delStart = Math.max(track.trimStart, Math.min(sel.start, sel.end));
+            let delEnd = Math.min(track.trimEnd, Math.max(sel.start, sel.end));
+            if (delEnd - delStart < 0.05) return;
+
+            pushUndo('audio.undoDeleteRegion');
+            stopTrack(trackId);
+
+            const oldTrimStart = track.trimStart;
+            const oldTrimEnd = track.trimEnd;
+            const oldFadeInEnd = oldTrimStart + track.fadeInDuration;
+            const oldFadeOutStart = oldTrimEnd - track.fadeOutDuration;
+            const delLen = delEnd - delStart;
+
+            const buffer = track.buffer;
+            const sr = buffer.sampleRate;
+            const ch = buffer.numberOfChannels;
+            const startS = Math.floor(delStart * sr);
+            const endS = Math.floor(delEnd * sr);
+            const newLen = buffer.length - (endS - startS);
+
+            const ac = initAudioContext();
+            const newBuffer = ac.createBuffer(ch, newLen, sr);
+            for (let c = 0; c < ch; c++) {
+                const src = buffer.getChannelData(c);
+                const dst = newBuffer.getChannelData(c);
+                dst.set(src.subarray(0, startS), 0);
+                dst.set(src.subarray(endS), startS);
+            }
+
+            const remapTime = (t) => {
+                if (t <= delStart) return t;
+                if (t >= delEnd) return t - delLen;
+                return delStart;
+            };
+
+            track.buffer = newBuffer;
+            track.duration = newBuffer.duration;
+            track.trimStart = remapTime(oldTrimStart);
+            track.trimEnd = remapTime(oldTrimEnd);
+            const newFadeInEnd = remapTime(oldFadeInEnd);
+            const newFadeOutStart = remapTime(oldFadeOutStart);
+            track.fadeInDuration = Math.max(0, newFadeInEnd - track.trimStart);
+            track.fadeOutDuration = Math.max(0, track.trimEnd - newFadeOutStart);
+            clampFades(track);
+
+            waveformSelections.delete(trackId);
+            trackPlayheadPos.delete(trackId);
+            trackViewState.delete(trackId);
+            renderTracks();
         }
 
         function syncTrackInputs(trackId, track) {
@@ -1310,6 +1860,8 @@
             if (!track) return;
             if (prop === 'trimStart') value = Math.max(0, Math.min(value, track.trimEnd - 0.2));
             if (prop === 'trimEnd') value = Math.max(track.trimStart + 0.2, Math.min(value, track.duration));
+            if (track[prop] === value) return;
+            pushUndo('audio.undoEditTrim');
             track[prop] = value;
             clampFades(track);
             const canvas = document.getElementById(`canvas-${id}`);
@@ -1322,7 +1874,10 @@
             const track = tracks.find(t => t.id === id);
             if (!track) return;
             const halfDur = (track.trimEnd - track.trimStart) / 2;
-            track[prop] = Math.max(0, Math.min(value, halfDur));
+            value = Math.max(0, Math.min(value, halfDur));
+            if (track[prop] === value) return;
+            pushUndo('audio.undoEditFade');
+            track[prop] = value;
             const canvas = document.getElementById(`canvas-${id}`);
             if (canvas) drawWaveform(canvas, track);
             syncTrackInputs(id, track);
@@ -1358,7 +1913,11 @@
 
         function toggleTrack(id) {
             if (activeTrackPlayers.has(id)) stopTrack(id);
-            else playTrack(id, 0);
+            else {
+                const track = tracks.find(t => t.id === id);
+                const rel = trackPlayheadPos.get(id) || 0;
+                playTrack(id, rel * ((track?.trimEnd || 0) - (track?.trimStart || 0)));
+            }
         }
 
         function playTrack(id, relativeSeek) {
@@ -1382,18 +1941,24 @@
             g.source.start(startTime, startPos, playBufRemain);
 
             activeTrackPlayers.set(id, { source: g.source, startTime, seekOffset: relativeSeek, track, raf: null });
+            updateTrackPlayButton(id);
             updateTrackPlayhead(id);
         }
 
         function stopTrack(id) {
             if (!activeTrackPlayers.has(id)) return;
             const p = activeTrackPlayers.get(id);
+            const rate = getTrackPlaybackRate(p.track);
+            const elapsed = (audioContext.currentTime - p.startTime) * rate + p.seekOffset;
+            const dur = p.track.trimEnd - p.track.trimStart;
+            trackPlayheadPos.set(id, Math.min(Math.max(elapsed / dur, 0), 1));
             try { p.source.stop(); } catch(e) {}
             if (p.raf) cancelAnimationFrame(p.raf);
             activeTrackPlayers.delete(id);
+            updateTrackPlayButton(id);
 
             const canvas = document.getElementById(`canvas-${id}`);
-            if (canvas) drawWaveform(canvas, p.track);
+            if (canvas) drawWaveform(canvas, p.track, trackPlayheadPos.get(id));
         }
 
         function updateTrackPlayhead(id) {
@@ -1414,6 +1979,7 @@
         async function applyTrim(id) {
             const track = tracks.find(t => t.id === id);
             if (!track) return;
+            pushUndo('audio.undoTrimTrack');
             stopTrack(id);
 
             const trimDur = track.trimEnd - track.trimStart;
@@ -1427,13 +1993,14 @@
 
             source.connect(envelope).connect(volumeGain).connect(offline.destination);
 
-            envelope.gain.setValueAtTime(0, 0);
-            envelope.gain.linearRampToValueAtTime(1, track.fadeInDuration);
-
-            const fadeOutStart = trimDur - track.fadeOutDuration;
-            if (track.fadeOutDuration > 0) {
-                envelope.gain.setValueAtTime(1, fadeOutStart);
-                envelope.gain.linearRampToValueAtTime(0, trimDur);
+            envelope.gain.setValueAtTime(track.fadesEnabled === false ? 1 : 0, 0);
+            if (track.fadesEnabled !== false) {
+                envelope.gain.linearRampToValueAtTime(1, track.fadeInDuration);
+                const fadeOutStart = trimDur - track.fadeOutDuration;
+                if (track.fadeOutDuration > 0) {
+                    envelope.gain.setValueAtTime(1, fadeOutStart);
+                    envelope.gain.linearRampToValueAtTime(0, trimDur);
+                }
             }
 
             source.start(0, track.trimStart, trimDur);
@@ -1455,41 +2022,60 @@
             if (confirm(I18n.t('audio.deleteTrackConfirm'))) {
                 stopTrack(id);
                 tracks = tracks.filter(t => t.id !== id);
+                trackViewState.delete(id);
+                waveformSelections.delete(id);
+                trackPlayheadPos.delete(id);
                 renderTracks();
             }
         }
 
         function toggleMixPlay() {
             if (mixPlayer.isPlaying) stopMix();
-            else playMix();
+            else playMix(mixPlayer.seekOffset || 0);
         }
 
-        function playMix() {
+        function playMix(fromSec = 0) {
             stopMix();
             initAudioContext();
             const startTime = audioContext.currentTime + 0.1;
             mixPlayer.startTime = startTime;
+            mixPlayer.seekOffset = fromSec;
             mixPlayer.isPlaying = true;
             document.getElementById('mix-play-btn').innerHTML = '&#10074;&#10074; ' + I18n.t('audio.pauseMix');
 
             const maxDur = getMixDuration();
-
             document.getElementById('mix-total').textContent = formatTime(maxDur);
-
+            updateMixPlayheadUI(fromSec / maxDur);
+            document.getElementById('mix-current').textContent = formatTime(fromSec);
 
             tracks.forEach(track => {
                 if (track.muted || track.trimEnd <= track.trimStart) return;
 
+                const off = track.offset || 0;
+                const wallDur = getTrackWallDuration(track);
+                const trackEnd = off + wallDur;
+                if (fromSec >= trackEnd) return;
+
                 const g = buildTrackGraph(audioContext, track);
                 g.volumeGain.connect(audioContext.destination);
 
-                const bufDur = track.trimEnd - track.trimStart;
-                const wallDur = getTrackWallDuration(track);
-                const trackStart = startTime + (track.offset || 0);
+                const rate = getTrackPlaybackRate(track);
+                let bufStart = track.trimStart;
+                let bufDur = track.trimEnd - track.trimStart;
+                let playWallDur = wallDur;
+                let trackStart = startTime + off - fromSec;
 
-                applyTrackEnvelope(g.envelope, track, trackStart, wallDur);
+                const intoWall = fromSec - off;
+                if (intoWall > 0) {
+                    bufStart += intoWall * rate;
+                    bufDur = track.trimEnd - bufStart;
+                    if (bufDur <= 0) return;
+                    playWallDur = bufDur / rate;
+                }
 
-                g.source.start(trackStart, track.trimStart, bufDur);
+                const when = Math.max(startTime, trackStart);
+                applyTrackEnvelope(g.envelope, track, when, playWallDur);
+                g.source.start(when, bufStart, bufDur);
                 mixPlayer.sources.push(g.source);
             });
 
@@ -1502,20 +2088,27 @@
             mixPlayer.isPlaying = false;
             if (mixPlayer.raf) cancelAnimationFrame(mixPlayer.raf);
             document.getElementById('mix-play-btn').innerHTML = '&#9654; ' + I18n.t('audio.playMix');
-            document.getElementById('mix-progress-bar').style.width = '0%';
-            renderGlobalTimeline();
+            const totalDur = getMixDuration();
+            const pct = totalDur > 0 ? mixPlayer.seekOffset / totalDur : 0;
+            updateMixPlayheadUI(pct);
+            document.getElementById('mix-current').textContent = formatTime(mixPlayer.seekOffset);
+            renderGlobalTimeline(totalDur > 0 ? pct : null);
         }
 
         function updateMixProgress(totalDur) {
             if (!mixPlayer.isPlaying) return;
             const elapsed = audioContext.currentTime - mixPlayer.startTime;
-            const pct = Math.min(elapsed / totalDur, 1);
-            document.getElementById('mix-progress-bar').style.width = (pct * 100) + '%';
-            document.getElementById('mix-current').textContent = formatTime(elapsed);
+            const current = mixPlayer.seekOffset + elapsed;
+            const pct = Math.min(current / totalDur, 1);
+            updateMixPlayheadUI(pct);
+            document.getElementById('mix-current').textContent = formatTime(current);
             renderGlobalTimeline(pct);
 
-            if (elapsed < totalDur) mixPlayer.raf = requestAnimationFrame(() => updateMixProgress(totalDur));
-            else stopMix();
+            if (current < totalDur) mixPlayer.raf = requestAnimationFrame(() => updateMixProgress(totalDur));
+            else {
+                mixPlayer.seekOffset = totalDur;
+                stopMix();
+            }
         }
 
         function formatTime(sec) {
@@ -1549,10 +2142,30 @@
 
             const rendered = await offline.startRendering();
             const wav = encodeWAV(rendered);
+
+            if (window.showSaveFilePicker) {
+                try {
+                    const pickerOpts = {
+                        suggestedName: getSuggestedMixFilename(),
+                        types: [{ description: I18n.t('audio.wavFileKind'), accept: { 'audio/wav': ['.wav'] } }]
+                    };
+                    if (mixSaveFileHandle) pickerOpts.startIn = mixSaveFileHandle;
+                    const saveHandle = await window.showSaveFilePicker(pickerOpts);
+                    const writable = await saveHandle.createWritable();
+                    await writable.write(wav);
+                    await writable.close();
+                    mixSaveFileHandle = saveHandle;
+                    lastMixSaveName = saveHandle.name;
+                    return;
+                } catch (e) {
+                    if (e.name === 'AbortError') return;
+                }
+            }
+
             const url = URL.createObjectURL(wav);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `mix_${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.wav`;
+            a.download = getSuggestedMixFilename();
             a.click();
             URL.revokeObjectURL(url);
         }
@@ -1596,7 +2209,9 @@
             document.title = I18n.t('audio.pageTitle');
             I18n.applyTo(document.body);
             if (tracks.length) renderTracks();
-            renderGlobalTimeline();
+            else renderGlobalTimeline();
+            tracks.forEach(t => updateTrackPlayButton(t.id));
+            updateUndoHint();
             const mixBtn = document.getElementById('mix-play-btn');
             if (mixBtn && mixPlayer.isPlaying) {
                 mixBtn.innerHTML = '&#10074;&#10074; ' + I18n.t('audio.pauseMix');
@@ -1615,6 +2230,30 @@
                 I18n.setLang(d.lang).then(refreshAudioI18n);
             });
             setupDragAndDrop();
+            setupMixSeek();
+            document.addEventListener('keydown', (e) => {
+                if (e.target.matches('input, textarea, select, button')) return;
+
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+                    e.preventDefault();
+                    undoLastAction();
+                    return;
+                }
+
+                if (e.code === 'Space') {
+                    e.preventDefault();
+                    if (focusedTrackId && tracks.some(t => t.id === focusedTrackId)) {
+                        toggleTrack(focusedTrackId);
+                    }
+                    return;
+                }
+
+                if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+                for (const [trackId] of waveformSelections) {
+                    deleteSelectedRegion(trackId);
+                    break;
+                }
+            });
         };
     </script>
 </body>
