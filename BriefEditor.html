@@ -657,6 +657,221 @@
 
         function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
         function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+        const EM_DASH = '\u2014';
+        const LDQUO = '\u201C';
+        const RDQUO = '\u201D';
+        let smartTypoLock = false;
+
+        function uiTypoLang() {
+            try { return (I18n.getLang && I18n.getLang() === 'ru') ? 'ru' : 'en'; } catch (e) { return 'en'; }
+        }
+        function countTypoScripts(s) {
+            let cyr = 0, lat = 0;
+            for (let i = 0; i < s.length; i++) {
+                const c = s.charCodeAt(i);
+                if (c >= 0x0400 && c <= 0x04FF) cyr++;
+                else if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) lat++;
+            }
+            return { cyr, lat };
+        }
+        function detectTypoLang(before, after) {
+            const a = countTypoScripts(after.slice(0, 80));
+            if (a.cyr !== a.lat) return a.cyr > a.lat ? 'ru' : 'en';
+            const b = countTypoScripts(before.slice(-80));
+            if (b.cyr !== b.lat) return b.cyr > b.lat ? 'ru' : 'en';
+            return uiTypoLang();
+        }
+        function isOpeningQuoteContext(before) {
+            if (!before) return true;
+            const prev = before.charAt(before.length - 1);
+            if (prev === '\n' || prev === '\r') return true;
+            return /[\s(\[{«„“‘'"—–\/]/.test(prev);
+        }
+        function lastUnmatchedOpenQuote(before) {
+            const stack = [];
+            for (let i = 0; i < before.length; i++) {
+                const c = before[i];
+                if (c === '«' || c === LDQUO || c === '"') stack.push(i);
+                else if ((c === '»' || c === RDQUO) && stack.length) stack.pop();
+            }
+            return stack.length ? stack[stack.length - 1] : -1;
+        }
+        function smartQuoteChar(lang, opening) {
+            if (lang === 'ru') return opening ? '«' : '»';
+            return opening ? LDQUO : RDQUO;
+        }
+        function planSmartInsert(before, after, ch, hasSelection) {
+            if (!ch) return null;
+            if (ch.length > 1) {
+                const nice = beautifyPlainText(ch, before, after);
+                if (nice === ch) return null;
+                return { deleteBefore: 0, insert: nice };
+            }
+            if (ch === '"' || ch === LDQUO || ch === RDQUO) {
+                const opening = isOpeningQuoteContext(before);
+                if (hasSelection || opening) {
+                    return { deleteBefore: 0, insert: smartQuoteChar(detectTypoLang(before, after), opening) };
+                }
+                const openIdx = lastUnmatchedOpenQuote(before);
+                const inner = openIdx >= 0 ? before.slice(openIdx + 1) : '';
+                const lang = detectTypoLang(inner || before, after);
+                const close = smartQuoteChar(lang, false);
+                const wantOpen = smartQuoteChar(lang, true);
+                if (openIdx >= 0 && before[openIdx] !== wantOpen && inner.indexOf('\n') === -1 && inner.length < 400) {
+                    return { deleteBefore: before.length - openIdx, insert: wantOpen + inner + close };
+                }
+                return { deleteBefore: 0, insert: close };
+            }
+            if (hasSelection) return null;
+            if (ch === ' ') {
+                if (/ --$/.test(before) || / ––$/.test(before)) return { deleteBefore: 3, insert: ' ' + EM_DASH + ' ' };
+                if (/^--$/.test(before) || /\n--$/.test(before)) return { deleteBefore: 2, insert: EM_DASH + ' ' };
+                if (/ -$/.test(before) || / –$/.test(before)) return { deleteBefore: 2, insert: ' ' + EM_DASH + ' ' };
+            }
+            if (ch === '-') {
+                const prev = before.charAt(before.length - 1);
+                const next = after.charAt(0);
+                const prevOk = !prev || prev === ' ' || prev === '\n' || prev === '\t';
+                const nextOk = next === ' ' || next === '\n' || next === '\t';
+                if (prevOk && nextOk) return { deleteBefore: 0, insert: EM_DASH };
+            }
+            return null;
+        }
+        function beautifyPlainText(text, beforeCtx, afterCtx) {
+            let s = String(text || '');
+            s = s.replace(/ -- /g, ' ' + EM_DASH + ' ');
+            s = s.replace(/ – /g, ' ' + EM_DASH + ' ');
+            s = s.replace(/ - /g, ' ' + EM_DASH + ' ');
+            s = s.replace(/(^|\n)-- /g, '$1' + EM_DASH + ' ');
+            let out = '';
+            for (let i = 0; i < s.length; i++) {
+                const ch = s[i];
+                if (ch === '"' || ch === LDQUO || ch === RDQUO) {
+                    const left = (beforeCtx || '') + s.slice(0, i);
+                    const right = s.slice(i + 1) + (afterCtx || '');
+                    out += smartQuoteChar(detectTypoLang(left, right), isOpeningQuoteContext(left));
+                } else {
+                    out += ch;
+                }
+            }
+            return out;
+        }
+        function isPlainTextField(el) {
+            if (!el || el.nodeType !== 1) return false;
+            const tag = el.tagName;
+            return tag === 'TEXTAREA' || (tag === 'INPUT' && (el.type === 'text' || el.type === '' || !el.type));
+        }
+        function insertSmartInContentEditable(el, deleteBefore, text) {
+            const sel = window.getSelection();
+            if (!sel.rangeCount) return false;
+            if (deleteBefore > 0 && sel.getRangeAt(0).collapsed && typeof sel.modify === 'function') {
+                for (let i = 0; i < deleteBefore; i++) sel.modify('extend', 'backward', 'character');
+            }
+            if (document.execCommand('insertText', false, text)) return true;
+            const range = sel.getRangeAt(0);
+            range.deleteContents();
+            const node = document.createTextNode(text);
+            range.insertNode(node);
+            range.setStartAfter(node);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+        }
+        function insertSmartInField(el, deleteBefore, text, start, end) {
+            const from = Math.max(0, start - (deleteBefore || 0));
+            el.setRangeText(text, from, end, 'end');
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        function onSmartTypoBeforeInput(e) {
+            if (smartTypoLock || e.defaultPrevented) return;
+            if (e.isComposing) return;
+            if (e.inputType !== 'insertText' || e.data == null) return;
+            const el = e.currentTarget;
+            let before, after, start, end, hasSelection;
+            if (isPlainTextField(el)) {
+                start = el.selectionStart;
+                end = el.selectionEnd;
+                hasSelection = start !== end;
+                before = el.value.slice(0, start);
+                after = el.value.slice(end);
+            } else {
+                const sel = window.getSelection();
+                if (!sel || !sel.rangeCount) return;
+                hasSelection = !sel.getRangeAt(0).collapsed;
+                const pre = sel.getRangeAt(0).cloneRange();
+                pre.selectNodeContents(el);
+                pre.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
+                before = pre.toString();
+                const post = sel.getRangeAt(0).cloneRange();
+                post.selectNodeContents(el);
+                post.setStart(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+                after = post.toString();
+                start = before.length;
+                end = start;
+            }
+            const plan = planSmartInsert(before, after, e.data, hasSelection);
+            if (!plan) return;
+            e.preventDefault();
+            smartTypoLock = true;
+            try {
+                if (isPlainTextField(el)) insertSmartInField(el, plan.deleteBefore, plan.insert, start, end);
+                else insertSmartInContentEditable(el, plan.deleteBefore, plan.insert);
+            } finally {
+                smartTypoLock = false;
+            }
+        }
+        function onSmartTypoPaste(e) {
+            if (e.defaultPrevented) return;
+            const dt = e.clipboardData;
+            if (!dt) return;
+            const items = dt.items;
+            if (items) {
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].type && items[i].type.startsWith('image/')) return;
+                }
+            }
+            const pasted = dt.getData('text/plain');
+            if (!pasted) return;
+            const el = e.currentTarget;
+            let before = '', after = '';
+            if (isPlainTextField(el)) {
+                before = el.value.slice(0, el.selectionStart);
+                after = el.value.slice(el.selectionEnd);
+            } else {
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount) {
+                    const pre = sel.getRangeAt(0).cloneRange();
+                    pre.selectNodeContents(el);
+                    pre.setEnd(sel.getRangeAt(0).startContainer, sel.getRangeAt(0).startOffset);
+                    before = pre.toString();
+                    const post = sel.getRangeAt(0).cloneRange();
+                    post.selectNodeContents(el);
+                    post.setStart(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+                    after = post.toString();
+                }
+            }
+            const nice = beautifyPlainText(pasted, before, after);
+            if (nice === pasted) return;
+            e.preventDefault();
+            smartTypoLock = true;
+            try {
+                if (isPlainTextField(el)) {
+                    const start = el.selectionStart, end = el.selectionEnd;
+                    insertSmartInField(el, 0, nice, start, end);
+                } else {
+                    document.execCommand('insertText', false, nice);
+                }
+            } finally {
+                smartTypoLock = false;
+            }
+        }
+        function wireSmartTypography(el) {
+            el.addEventListener('beforeinput', onSmartTypoBeforeInput);
+            el.addEventListener('paste', onSmartTypoPaste);
+        }
         function debounce(fn, ms) {
             let t = null;
             const debounced = function() {
@@ -971,9 +1186,14 @@
                     const el = document.createElement('div');
                     el.className = 'text-sec' + (sec.isHeading ? ' is-heading' : '');
                     el.contentEditable = 'true';
+                    try { el.contentEditable = 'plaintext-only'; } catch (e) { /* older browsers */ }
+                    if (!el.isContentEditable) el.contentEditable = 'true';
+                    el.lang = uiTypoLang();
+                    el.spellcheck = true;
                     el.dataset.id = sec.id;
                     el.innerText = sec.text || '';
                     wrap.appendChild(el);
+                    wireSmartTypography(el);
                     el.addEventListener('focus', () => {
                         setActiveSection(sec.id);
                         selectedImage = { sectionId: null, imageId: null };
@@ -1731,6 +1951,8 @@
         annotTextEditor.addEventListener('input', () => {
             syncAnnotTextEditorFont();
         });
+        wireSmartTypography(annotTextEditor);
+        wireSmartTypography(briefTitle);
         annotTextEditor.addEventListener('blur', () => requestAnimationFrame(() => { if (document.activeElement !== annotTextEditor) finishAnnotTextEdit(); }));
         annotTextEditor.addEventListener('keydown', (e) => { if (e.key === 'Escape') { e.preventDefault(); annotTextEditor.blur(); } });
         window.addEventListener('keydown', (e) => {
