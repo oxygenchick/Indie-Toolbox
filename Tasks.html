@@ -179,6 +179,7 @@
             text-overflow: ellipsis;
             max-width: 300px;
         }
+        .history-btn { min-width: 28px; padding: 5px 8px; }
 
         .panel-hint {
             font-size: 11px;
@@ -652,6 +653,10 @@
             box-shadow: inset 0 -2px 0 #000;
         }
         .gantt-table td.gantt-day.today-col { border-color: #000; }
+        .gantt-table td.gantt-day.filled { cursor: grab; }
+        .gantt-table td.gantt-day.drag-origin { background: #fff; background-image: none; outline: 1px dashed #000; outline-offset: -2px; }
+        .gantt-table td.gantt-day.drag-preview { background: #000; background-image: none; outline: 2px solid #000; outline-offset: -2px; opacity: .55; }
+        body.gantt-dragging, body.gantt-dragging * { cursor: grabbing !important; user-select: none !important; }
 
         .gantt-empty {
             text-align: center;
@@ -753,6 +758,13 @@
         }
         .goal-desc:focus { border-color: #000; }
         .goal-desc::placeholder { color: #999; }
+        .goal-item.goal-collapsed { padding-top: 7px; padding-bottom: 7px; }
+        .goal-item.goal-collapsed .goal-header { margin-bottom: 0; }
+        .goal-summary { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+        .goal-header .goal-actions { display: flex; gap: 6px; margin-left: auto; }
+        .notes-period-nav { gap: 8px; }
+        .notes-all-btn.active { background: #000; color: #fff; box-shadow: none; transform: translate(2px, 2px); }
+        .notes-all-btn.active:hover { background-image: none; }
 
         .journal-panel {
             flex: 1;
@@ -880,6 +892,8 @@
             <div class="file-bar">
                 <button class="mac-btn" onclick="linkFile()">&#9741; <span data-i18n="tasks.openFile">Open File</span></button>
                 <button class="mac-btn" onclick="createFile()">&#10010; <span data-i18n="tasks.newFile">New File</span></button>
+                <button type="button" class="mac-btn history-btn" id="undo-btn" onclick="undoChange()" data-i18n-title="tasks.undo" data-i18n-aria-label="tasks.undo" title="Undo (Ctrl+Z)" disabled aria-label="Undo">&#8617;</button>
+                <button type="button" class="mac-btn history-btn" id="redo-btn" onclick="redoChange()" data-i18n-title="tasks.redo" data-i18n-aria-label="tasks.redo" title="Redo (Ctrl+Shift+Z)" disabled aria-label="Redo">&#8618;</button>
                 <span class="file-status" id="file-status" data-i18n="tasks.noFileLinked">No file linked</span>
             </div>
 
@@ -956,12 +970,13 @@
                 </div>
                 <div class="notes-body">
                     <div class="journal-panel" id="notes-list"></div>
-                    <div class="period-nav period-nav--bottom" role="navigation" data-i18n-aria-label="tasks.ariaNavNotesMonth" aria-label="Notes by month">
+                <div class="period-nav period-nav--bottom notes-period-nav" role="navigation" data-i18n-aria-label="tasks.ariaNavNotesMonth" aria-label="Notes by month">
                         <div class="period-nav-cluster">
                             <button type="button" class="period-nav-btn" onclick="notesMonthPrev()" data-i18n-title="tasks.prevMonth" title="Previous month">&#9664;</button>
                             <span class="period-nav-label" id="notes-month-label"></span>
                             <button type="button" class="period-nav-btn period-nav-btn--next" onclick="notesMonthNext()" data-i18n-title="tasks.nextMonth" title="Next month">&#9654;</button>
                         </div>
+                    <button type="button" class="mac-btn notes-all-btn" id="notes-all-btn" onclick="toggleNotesAll()" data-i18n="tasks.allNotes" aria-pressed="false">All</button>
                     </div>
                     <div class="notes-archive-block" id="notes-archive-block" style="display:none">
                         <button type="button" class="task-done-toggle" id="notes-archive-toggle" onclick="toggleNotesArchive()" data-i18n="tasks.archived">Archived</button>
@@ -1028,6 +1043,12 @@
     journalViewDate.setDate(1);
     let notesViewDate = new Date();
     notesViewDate.setDate(1);
+    let notesShowAll = false;
+    let ganttDrag = null;
+    let undoStack = [];
+    let redoStack = [];
+    let editedFields = new WeakSet();
+    let saveQueue = Promise.resolve();
     let goalsSaveTimer = null;
     let notesSaveTimer = null;
     let journalSaveTimer = null;
@@ -1040,6 +1061,75 @@
     } catch (e) {}
     const DB_NAME = 'indietoolbox_tasks';
     const STORE_NAME = 'handles';
+    function snapshotData() {
+        return JSON.stringify(getSaveData());
+    }
+
+    function updateHistoryButtons() {
+        const undo = document.getElementById('undo-btn');
+        const redo = document.getElementById('redo-btn');
+        if (undo) undo.disabled = undoStack.length === 0;
+        if (redo) redo.disabled = redoStack.length === 0;
+    }
+
+    function recordUndo() {
+        undoStack.push(snapshotData());
+        if (undoStack.length > 100) undoStack.shift();
+        redoStack = [];
+        updateHistoryButtons();
+    }
+
+    function recordTextUndo(el) {
+        if (!el || editedFields.has(el)) return;
+        editedFields.add(el);
+        recordUndo();
+    }
+
+    function restoreHistorySnapshot(snapshot) {
+        clearTimeout(goalsSaveTimer);
+        clearTimeout(journalSaveTimer);
+        clearTimeout(notesSaveTimer);
+        editingTaskIndex = null;
+        loadData(snapshot);
+        save();
+        refreshAllTaskPanels();
+        updateHistoryButtons();
+    }
+
+    function undoChange() {
+        if (!undoStack.length) return;
+        redoStack.push(snapshotData());
+        restoreHistorySnapshot(undoStack.pop());
+    }
+
+    function redoChange() {
+        if (!redoStack.length) return;
+        undoStack.push(snapshotData());
+        restoreHistorySnapshot(redoStack.pop());
+    }
+
+    function resetHistory() {
+        undoStack = [];
+        redoStack = [];
+        editedFields = new WeakSet();
+        updateHistoryButtons();
+    }
+
+    document.addEventListener('keydown', e => {
+        if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+        const key = e.key.toLowerCase();
+        const target = e.target;
+        const field = target && target.closest && target.closest('textarea, input[type="text"], input[type="number"], [contenteditable="true"]');
+        if (field && !(field.id === 'add-input' && !field.value) && !(field.tagName === 'TEXTAREA' && !field.value && !editedFields.has(field))) return;
+        if (key === 'z') {
+            e.preventDefault();
+            if (e.shiftKey) redoChange(); else undoChange();
+        } else if (key === 'y') {
+            e.preventDefault();
+            redoChange();
+        }
+    });
+
     function monthFull(m0to11) {
         return I18n.t('tasks.month.' + m0to11);
     }
@@ -1297,6 +1387,7 @@
         const input = document.getElementById('add-input');
         const text = input.value.trim();
         if (!text) return;
+        recordUndo();
         tasks.push({ text, done: false, days: [] });
         input.value = '';
         input.focus();
@@ -1305,6 +1396,7 @@
     }
 
     function toggleTask(i) {
+        recordUndo();
         const wasDone = tasks[i].done;
         tasks[i].done = !tasks[i].done;
         if (tasks[i].done && !wasDone) {
@@ -1319,6 +1411,7 @@
     }
 
     function deleteTask(i) {
+        recordUndo();
         if (editingTaskIndex === i) editingTaskIndex = null;
         else if (editingTaskIndex > i) editingTaskIndex--;
         if (pomoState.active && pomoState.taskIndex === i) stopPomo();
@@ -1353,6 +1446,7 @@
         if (editingTaskIndex !== i) return;
         editingTaskIndex = null;
         const t = value.trim();
+        if (t && t !== tasks[i].text) recordUndo();
         if (t) tasks[i].text = t;
         save();
         render();
@@ -1507,7 +1601,7 @@
                     if (isFilled) cls += ' filled';
                     if (isWeekend) cls += ' weekend';
                     if (isToday) cls += ' today-col';
-                    b += `<td class="${cls}" onclick="toggleGanttDay(${ti},'${dateStr}')"></td>`;
+                    b += `<td class="${cls}" data-task-index="${ti}" data-date="${dateStr}" title="${I18n.t(isFilled ? 'tasks.dragDatesHint' : 'tasks.markDateHint')}"></td>`;
                 }
                 b += '</tr>';
             });
@@ -1549,6 +1643,7 @@
     }
 
     function toggleGanttDay(taskIndex, dateStr) {
+        recordUndo();
         if (!tasks[taskIndex].days) tasks[taskIndex].days = [];
         const arr = tasks[taskIndex].days;
         const idx = arr.indexOf(dateStr);
@@ -1559,27 +1654,122 @@
         render();
     }
 
+    function ganttDayNumber(dateStr) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return Math.floor(Date.UTC(year, month - 1, day) / 86400000);
+    }
+
+    function ganttDateFromNumber(day) {
+        return new Date(day * 86400000).toISOString().slice(0, 10);
+    }
+
+    function ganttContiguousDays(task, dateStr) {
+        const marked = new Set((task.days || []).map(ganttDayNumber));
+        let first = ganttDayNumber(dateStr), last = first;
+        while (marked.has(first - 1)) first--;
+        while (marked.has(last + 1)) last++;
+        const block = [];
+        for (let day = first; day <= last; day++) block.push(day);
+        return block;
+    }
+
+    function previewGanttDrag() {
+        document.querySelectorAll('.gantt-day.drag-origin, .gantt-day.drag-preview').forEach(cell => cell.classList.remove('drag-origin', 'drag-preview'));
+        if (!ganttDrag || !ganttDrag.delta) return;
+        const oldDays = new Set(ganttDrag.block.map(ganttDateFromNumber));
+        const newDays = new Set(ganttDrag.block.map(day => ganttDateFromNumber(day + ganttDrag.delta)));
+        document.querySelectorAll(`.gantt-day[data-task-index="${ganttDrag.taskIndex}"]`).forEach(cell => {
+            if (oldDays.has(cell.dataset.date)) cell.classList.add('drag-origin');
+            if (newDays.has(cell.dataset.date)) cell.classList.add('drag-preview');
+        });
+    }
+
+    document.getElementById('gantt-wrap').addEventListener('pointerdown', event => {
+        const cell = event.target.closest('.gantt-day');
+        if (!cell || event.button !== 0) return;
+        event.preventDefault();
+        if (cell.setPointerCapture) cell.setPointerCapture(event.pointerId);
+        const taskIndex = Number(cell.dataset.taskIndex);
+        const dateStr = cell.dataset.date;
+        const filled = (tasks[taskIndex].days || []).includes(dateStr);
+        ganttDrag = {
+            taskIndex, dateStr, filled, block: filled ? ganttContiguousDays(tasks[taskIndex], dateStr) : [],
+            delta: 0, startX: event.clientX, startY: event.clientY, moved: false
+        };
+    });
+
+    window.addEventListener('pointermove', event => {
+        if (!ganttDrag) return;
+        if (Math.hypot(event.clientX - ganttDrag.startX, event.clientY - ganttDrag.startY) > 4) ganttDrag.moved = true;
+        if (!ganttDrag.moved || !ganttDrag.filled) return;
+        document.body.classList.add('gantt-dragging');
+        const cell = document.elementFromPoint(event.clientX, event.clientY)?.closest('.gantt-day');
+        if (!cell) return;
+        ganttDrag.delta = ganttDayNumber(cell.dataset.date) - ganttDayNumber(ganttDrag.dateStr);
+        previewGanttDrag();
+    });
+
+    window.addEventListener('pointerup', () => {
+        if (!ganttDrag) return;
+        const drag = ganttDrag;
+        ganttDrag = null;
+        document.body.classList.remove('gantt-dragging');
+        if (!drag.moved) {
+            toggleGanttDay(drag.taskIndex, drag.dateStr);
+            return;
+        }
+        if (drag.filled && drag.delta) {
+            recordUndo();
+            const oldDays = new Set(drag.block.map(ganttDateFromNumber));
+            const remaining = (tasks[drag.taskIndex].days || []).filter(day => !oldDays.has(day));
+            tasks[drag.taskIndex].days = [...new Set([...remaining, ...drag.block.map(day => ganttDateFromNumber(day + drag.delta))])].sort();
+            save();
+            render();
+        }
+        renderGantt();
+    });
+
+    window.addEventListener('pointercancel', () => {
+        if (!ganttDrag) return;
+        ganttDrag = null;
+        document.body.classList.remove('gantt-dragging');
+        renderGantt();
+    });
+
     function addGoal() {
+        recordUndo();
         const today = new Date();
         const y = today.getFullYear(), m = today.getMonth();
         const from = `${y}-${String(m+1).padStart(2,'0')}-01`;
         const lastDay = new Date(y, m+1, 0).getDate();
         const to = `${y}-${String(m+1).padStart(2,'0')}-${String(lastDay).padStart(2,'0')}`;
-        goals.push({ from, to, text: '' });
+        goals.push({ from, to, text: '', collapsed: false });
         save();
         renderGoals();
     }
 
     function deleteGoal(i) {
+        recordUndo();
         goals.splice(i, 1);
         save();
         renderGoals();
     }
 
-    function updateGoal(i, field, value) {
+    function updateGoal(i, field, value, el) {
+        if (goals[i][field] === value) return;
+        if (field === 'text') recordTextUndo(el);
+        else recordUndo();
         goals[i][field] = value;
         if (goalsSaveTimer) clearTimeout(goalsSaveTimer);
         goalsSaveTimer = setTimeout(() => save(), 500);
+    }
+
+    function toggleGoalCollapsed(i) {
+        if (!goals[i]) return;
+        recordUndo();
+        goals[i].collapsed = !goals[i].collapsed;
+        save();
+        renderGoals();
     }
 
     function formatGoalRange(from, to) {
@@ -1612,17 +1802,20 @@
         container.innerHTML = '';
         goals.forEach((g, i) => {
             const div = document.createElement('div');
-            div.className = 'goal-item';
+            div.className = 'goal-item' + (g.collapsed ? ' goal-collapsed' : '');
             const rangeLabel = formatGoalRange(g.from, g.to);
+            const summary = (g.text || '').replace(/\s+/g, ' ').trim() || I18n.t('tasks.goalPlaceholder');
             div.innerHTML = `
                 <div class="goal-header">
-                    <input type="date" value="${g.from}" onchange="updateGoal(${i},'from',this.value);renderGoals()">
-                    <span class="goal-sep">&#8594;</span>
-                    <input type="date" value="${g.to}" onchange="updateGoal(${i},'to',this.value);renderGoals()">
+                    ${g.collapsed ? '' : `<input type="date" value="${g.from}" onchange="updateGoal(${i},'from',this.value);renderGoals()"><span class="goal-sep">&#8594;</span><input type="date" value="${g.to}" onchange="updateGoal(${i},'to',this.value);renderGoals()">`}
                     <span class="goal-range-label">${rangeLabel}</span>
-                    <button type="button" class="task-btn" onclick="deleteGoal(${i})" title="${I18n.t('tasks.delete')}" style="margin-left:auto">${TASK_BTN_SVG.del}</button>
+                    ${g.collapsed ? `<span class="goal-summary">${escapeHtml(summary)}</span>` : ''}
+                    <span class="goal-actions">
+                        <button type="button" class="task-btn" onclick="toggleGoalCollapsed(${i})" title="${I18n.t(g.collapsed ? 'tasks.expandGoal' : 'tasks.collapseGoal')}" aria-label="${I18n.t(g.collapsed ? 'tasks.expandGoal' : 'tasks.collapseGoal')}">${g.collapsed ? '&#9662;' : '&#9652;'}</button>
+                        <button type="button" class="task-btn" onclick="deleteGoal(${i})" title="${I18n.t('tasks.delete')}">${TASK_BTN_SVG.del}</button>
+                    </span>
                 </div>
-                <textarea class="goal-desc" placeholder="${I18n.t('tasks.goalPlaceholder')}" oninput="updateGoal(${i},'text',this.value);autoGrow(this)">${escapeHtml(g.text)}</textarea>
+                ${g.collapsed ? '' : `<textarea class="goal-desc" placeholder="${I18n.t('tasks.goalPlaceholder')}" oninput="updateGoal(${i},'text',this.value,this);autoGrow(this)">${escapeHtml(g.text)}</textarea>`}
             `;
             container.appendChild(div);
         });
@@ -1669,6 +1862,7 @@
     }
 
     function addJournalEntry() {
+        recordUndo();
         const now = new Date();
         journalViewDate = new Date(now.getFullYear(), now.getMonth(), 1);
         if (journalEditingIndex !== null) journalSyncEditorToData();
@@ -1700,6 +1894,7 @@
     }
 
     function deleteJournalEntry(i) {
+        recordUndo();
         if (journalEditingIndex !== null) {
             const ei = journalEditingIndex;
             const ta = document.querySelector(`textarea.journal-text[data-ji="${ei}"]`);
@@ -1713,8 +1908,10 @@
         renderJournal();
     }
 
-    function updateJournalEntry(i, value) {
+    function updateJournalEntry(i, value, el) {
         if (!journal[i]) return;
+        if (journal[i].text === value) return;
+        recordTextUndo(el);
         journal[i].text = value;
         if (journalSaveTimer) clearTimeout(journalSaveTimer);
         journalSaveTimer = setTimeout(() => save(), 500);
@@ -1797,7 +1994,7 @@
                     </div>
                 </div>
                 ${isEdit
-                    ? `<textarea class="journal-text" data-ji="${i}" placeholder="${I18n.t('tasks.journalWritePlaceholder')}" oninput="updateJournalEntry(${i},this.value);autoGrow(this)" onblur="journalAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
+                    ? `<textarea class="journal-text" data-ji="${i}" placeholder="${I18n.t('tasks.journalWritePlaceholder')}" oninput="updateJournalEntry(${i},this.value,this);autoGrow(this)" onblur="journalAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
                     : `<div class="journal-bubble">${bubbleInner}</div>`
                 }
             `;
@@ -1855,17 +2052,26 @@
 
     function notesMonthPrev() {
         notesFinishCurrentEdit();
+        notesShowAll = false;
         notesViewDate.setMonth(notesViewDate.getMonth() - 1);
         renderNotes();
     }
 
     function notesMonthNext() {
         notesFinishCurrentEdit();
+        notesShowAll = false;
         notesViewDate.setMonth(notesViewDate.getMonth() + 1);
         renderNotes();
     }
 
+    function toggleNotesAll() {
+        notesFinishCurrentEdit();
+        notesShowAll = !notesShowAll;
+        renderNotes();
+    }
+
     function addNoteItem() {
+        recordUndo();
         const now = new Date();
         notesViewDate = new Date(now.getFullYear(), now.getMonth(), 1);
         if (notesEditingIndex !== null) {
@@ -1893,6 +2099,7 @@
     }
 
     function deleteNoteItem(i) {
+        recordUndo();
         if (notesEditingIndex !== null) {
             const ei = notesEditingIndex;
             const ta = document.querySelector(`textarea.note-text[data-ni="${ei}"]`);
@@ -1906,8 +2113,10 @@
         renderNotes();
     }
 
-    function updateNoteItem(i, value) {
+    function updateNoteItem(i, value, el) {
         if (!notesItems[i]) return;
+        if (notesItems[i].text === value) return;
+        recordTextUndo(el);
         notesItems[i].text = value;
         if (notesSaveTimer) clearTimeout(notesSaveTimer);
         notesSaveTimer = setTimeout(() => save(), 500);
@@ -1962,7 +2171,7 @@
             if (!isNaN(ed.getTime())) {
                 const vy = notesViewDate.getFullYear();
                 const vm = notesViewDate.getMonth();
-                if (ed.getFullYear() !== vy || ed.getMonth() !== vm) {
+                if (!notesShowAll && (ed.getFullYear() !== vy || ed.getMonth() !== vm)) {
                     notesViewDate = new Date(ed.getFullYear(), ed.getMonth(), 1);
                 }
             }
@@ -1970,7 +2179,12 @@
 
         const vy = notesViewDate.getFullYear();
         const vm = notesViewDate.getMonth();
-        if (label) label.textContent = `${monthFull(vm)} ${vy}`;
+        if (label) label.textContent = notesShowAll ? I18n.t('tasks.allNotes') : `${monthFull(vm)} ${vy}`;
+        const allButton = document.getElementById('notes-all-btn');
+        if (allButton) {
+            allButton.classList.toggle('active', notesShowAll);
+            allButton.setAttribute('aria-pressed', String(notesShowAll));
+        }
 
         if (notesItems.length === 0) {
             notesEditingIndex = null;
@@ -1983,7 +2197,7 @@
         notesItems.forEach((entry, i) => {
             const d = new Date(entry.created);
             if (isNaN(d.getTime())) return;
-            if (d.getFullYear() !== vy || d.getMonth() !== vm) return;
+            if (!notesShowAll && (d.getFullYear() !== vy || d.getMonth() !== vm)) return;
             rows.push({ entry, i });
         });
 
@@ -2016,7 +2230,7 @@
                     </div>
                 </div>
                 ${isEdit
-                    ? `<textarea class="note-text" data-ni="${i}" placeholder="${I18n.t('tasks.noteWritePlaceholder')}" oninput="updateNoteItem(${i},this.value);autoGrow(this)" onblur="notesAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
+                    ? `<textarea class="note-text" data-ni="${i}" placeholder="${I18n.t('tasks.noteWritePlaceholder')}" oninput="updateNoteItem(${i},this.value,this);autoGrow(this)" onblur="notesAreaBlur(${i})">${escapeHtml(entry.text)}</textarea>`
                     : `<div class="journal-bubble">${bubbleInner}</div>`
                 }
             `;
@@ -2077,6 +2291,7 @@
 
     function archiveNoteItem(i) {
         if (!notesItems[i]) return;
+        recordUndo();
         if (notesSaveTimer) clearTimeout(notesSaveTimer);
         if (notesEditingIndex === i) {
             const ta = document.querySelector(`textarea.note-text[data-ni="${i}"]`);
@@ -2093,6 +2308,7 @@
 
     function restoreArchivedNote(ai) {
         if (!notesArchived[ai]) return;
+        recordUndo();
         const [item] = notesArchived.splice(ai, 1);
         if (item) notesItems.unshift(item);
         save();
@@ -2112,7 +2328,7 @@
             tasks = (data.tasks || []).map(t => ({ text: t.text, done: !!t.done, days: t.days || [] }));
             notesItems = normalizeNotesField(data.notes);
             notesArchived = normalizeNotesField(data.notesArchived);
-            goals = (data.goals || []).map(g => ({ from: g.from || '', to: g.to || '', text: g.text || '' }));
+            goals = (data.goals || []).map(g => ({ from: g.from || '', to: g.to || '', text: g.text || '', collapsed: !!g.collapsed }));
             journal = (data.journal || []).map(j => ({
                 created: j.created || '',
                 text: j.text || ''
@@ -2134,17 +2350,22 @@
         return { tasks, notes: notesItems, notesArchived, goals, journal };
     }
 
-    async function save() {
-        if (!fileHandle) return;
-        try {
-            const writable = await fileHandle.createWritable();
-            await writable.write(JSON.stringify(getSaveData(), null, 2));
-            await writable.close();
-            updateStatus(fileHandle.name, true);
-        } catch (e) {
-            console.warn('File save failed:', e);
-            updateStatus(fileHandle.name, false);
-        }
+    function save() {
+        if (!fileHandle) return Promise.resolve();
+        const handle = fileHandle;
+        const payload = JSON.stringify(getSaveData(), null, 2);
+        saveQueue = saveQueue.catch(() => {}).then(async () => {
+            try {
+                const writable = await handle.createWritable();
+                await writable.write(payload);
+                await writable.close();
+                if (fileHandle === handle) updateStatus(handle.name, true);
+            } catch (e) {
+                console.warn('File save failed:', e);
+                if (fileHandle === handle) updateStatus(handle.name, false);
+            }
+        });
+        return saveQueue;
     }
 
     async function linkFile() {
@@ -2162,9 +2383,10 @@
             const file = await handle.getFile();
             const text = await file.text();
             loadData(text);
+            resetHistory();
             updateStatus(handle.name, true);
             showApp();
-            render();
+            refreshAllTaskPanels();
         } catch (e) {
             if (e.name !== 'AbortError') console.error(e);
         }
@@ -2189,12 +2411,13 @@
             journal = [];
             journalEditingIndex = null;
             notesEditingIndex = null;
+            resetHistory();
             const writable = await handle.createWritable();
             await writable.write(JSON.stringify(getSaveData(), null, 2));
             await writable.close();
             updateStatus(handle.name, true);
             showApp();
-            render();
+            refreshAllTaskPanels();
         } catch (e) {
             if (e.name !== 'AbortError') console.error(e);
         }
@@ -2217,10 +2440,11 @@
             const file = await fileHandle.getFile();
             const text = await file.text();
             loadData(text);
+            resetHistory();
             updateStatus(fileHandle.name, true);
             pendingHandle = null;
             showApp();
-            render();
+            refreshAllTaskPanels();
         } catch (e) {
             pendingHandle = null;
             document.getElementById('quick-connect').style.display = 'none';
@@ -2238,9 +2462,10 @@
                     const file = await handle.getFile();
                     const text = await file.text();
                     loadData(text);
+                    resetHistory();
                     updateStatus(handle.name, true);
                     showApp();
-                    render();
+                    refreshAllTaskPanels();
                 } catch (e) {}
                 return;
             }
