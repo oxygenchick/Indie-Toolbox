@@ -27,6 +27,7 @@ const ABOUT_DESC_RU = `Indie Toolbox — набор повседневных и�
 
 const baseEn = {
     "tasks.reorderHint": "Drag a task to move it",
+    "tasks.ganttDatedOnly": "Only tasks dated this month",
     "tasks.reorderTask": "Change order: {name}",
     "tasks.retrySave": "Retry saving",
     "tasks.saveCopy": "Save a copy…",
@@ -260,6 +261,7 @@ const baseEn = {
 
 const baseRu = {
     "tasks.reorderHint": "Перетащите задачу, чтобы изменить порядок",
+    "tasks.ganttDatedOnly": "Только с датами этого месяца",
     "tasks.reorderTask": "Изменить порядок: {name}",
     "tasks.retrySave": "Повторить сохранение",
     "tasks.saveCopy": "Сохранить копию…",

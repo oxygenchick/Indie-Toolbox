@@ -246,6 +246,7 @@
   "tasks.expandGoal": "Expand goal",
   "tasks.archived": "Archived",
   "tasks.ganttTaskCol": "Task",
+  "tasks.ganttDatedOnly": "Only tasks dated this month",
   "tasks.ganttEmpty": "Add tasks first to use the Gantt chart.",
   "tasks.ganttNoActiveMonth": "No active tasks for this month.",
   "tasks.ganttCompletedThisMonth": "Completed this month",

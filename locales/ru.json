@@ -246,6 +246,7 @@
   "tasks.expandGoal": "Развернуть цель",
   "tasks.archived": "Архив",
   "tasks.ganttTaskCol": "Задача",
+  "tasks.ganttDatedOnly": "Только с датами этого месяца",
   "tasks.ganttEmpty": "Сначала добавьте задачи для диаграммы Гантта.",
   "tasks.ganttNoActiveMonth": "Нет активных задач в этом месяце.",
   "tasks.ganttCompletedThisMonth": "Выполнено в этом месяце",

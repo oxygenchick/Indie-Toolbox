@@ -491,6 +491,15 @@
             border-top: 1px solid #000;
             border-bottom: none;
         }
+        .gantt-period-nav { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 12px; }
+        .gantt-period-nav .period-nav-cluster { grid-column: 2; }
+        .gantt-dated-toggle { grid-column: 3; justify-self: end; margin: 0; font-size: 11px; white-space: nowrap; }
+        .gantt-dated-toggle[aria-pressed="true"] { background: #000; color: #fff; box-shadow: none; transform: translate(2px, 2px); }
+        .gantt-dated-toggle[aria-pressed="true"]:hover { background-image: none; }
+        @media (max-width: 600px) {
+            .gantt-period-nav { grid-template-columns: 1fr; gap: 7px; }
+            .gantt-period-nav .period-nav-cluster, .gantt-dated-toggle { grid-column: 1; justify-self: center; }
+        }
         .period-nav-cluster {
             display: flex;
             align-items: stretch;
@@ -990,12 +999,13 @@
 
             <div id="panel-gantt" class="tab-panel">
                 <div class="gantt-wrap" id="gantt-wrap"></div>
-                <div class="period-nav period-nav--bottom" role="navigation" data-i18n-aria-label="tasks.ariaNavGanttMonth" aria-label="Gantt month">
+                <div class="period-nav period-nav--bottom gantt-period-nav" role="navigation" data-i18n-aria-label="tasks.ariaNavGanttMonth" aria-label="Gantt month">
                     <div class="period-nav-cluster">
                         <button type="button" class="period-nav-btn" onclick="ganttPrev()" data-i18n-title="tasks.prevMonth" title="Previous month">&#9664;</button>
                         <span class="period-nav-label period-nav-label--gantt" id="gantt-month-label"></span>
                         <button type="button" class="period-nav-btn period-nav-btn--next" onclick="ganttNext()" data-i18n-title="tasks.nextMonth" title="Next month">&#9654;</button>
                     </div>
+                    <button type="button" class="mac-btn gantt-dated-toggle" id="gantt-dated-toggle" onclick="toggleGanttDatedOnly()" data-i18n="tasks.ganttDatedOnly" aria-pressed="false">Only tasks dated this month</button>
                 </div>
             </div>
 
@@ -1057,16 +1067,17 @@
     function readTaskUIState() {
         try {
             const s = localStorage.getItem('indietoolbox_tasks_ui');
-            if (!s) return { doneHidden: false, months: {}, ganttDoneHidden: true };
+            if (!s) return { doneHidden: false, months: {}, ganttDoneHidden: true, ganttDatedOnly: false };
             const o = JSON.parse(s);
             return {
                 doneHidden: !!o.doneHidden,
                 ganttDoneHidden: typeof o.ganttDoneHidden === 'boolean' ? o.ganttDoneHidden : true,
+                ganttDatedOnly: !!o.ganttDatedOnly,
                 ganttGroups: Array.isArray(o.ganttGroups) ? o.ganttGroups.filter(key => typeof key === 'string') : [],
                 months: o.months && typeof o.months === 'object' ? { ...o.months } : {}
             };
         } catch (e) {
-            return { doneHidden: false, months: {}, ganttDoneHidden: true };
+            return { doneHidden: false, months: {}, ganttDoneHidden: true, ganttDatedOnly: false };
         }
     }
     function writeTaskUIState() {
@@ -1414,6 +1425,12 @@
         renderGantt();
     }
 
+    function toggleGanttDatedOnly() {
+        taskUICollapsed.ganttDatedOnly = !taskUICollapsed.ganttDatedOnly;
+        writeTaskUIState();
+        renderGantt();
+    }
+
     function ganttMonthKey(y, m) {
         return `${y}-${String(m + 1).padStart(2, '0')}`;
     }
@@ -1734,6 +1751,7 @@
         const y = ganttDate.getFullYear();
         const m = ganttDate.getMonth();
         label.textContent = `${monthFull(m)} ${y}`;
+        document.getElementById('gantt-dated-toggle').setAttribute('aria-pressed', String(!!taskUICollapsed.ganttDatedOnly));
 
         if (tasks.length === 0) {
             wrap.innerHTML = '<div class="gantt-empty">' + I18n.t('tasks.ganttEmpty') + '</div>';
@@ -1819,7 +1837,7 @@
             return `<table class="gantt-table${painting.areas.length ? ' is-grouped' : ''}" style="--gantt-days:${daysInMonth}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${daysInMonth}"></colgroup>${buildThead()}`;
         }
 
-        const openIndices = tasks.map((_, ti) => ti).filter((ti) => !tasks[ti].done);
+        const openIndices = tasks.map((_, ti) => ti).filter((ti) => !tasks[ti].done && (!taskUICollapsed.ganttDatedOnly || taskHasDayInGanttMonth(tasks[ti], y, m)));
         const doneThisMonthIndices = tasks.map((_, ti) => ti).filter(
             (ti) => tasks[ti].done && taskHasDayInGanttMonth(tasks[ti], y, m)
         );

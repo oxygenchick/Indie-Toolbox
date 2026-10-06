@@ -12,15 +12,39 @@ const { chromium } = require('playwright');
     {text:'Очень длинное название задачи: проверить взаимодействие игрока с предметами и переходами между сценами, включая свет, звук и сохранение прогресса',areaId:'a',layerId:'l1',days:['2026-10-04']},
     {text:'Задача без области',days:[]},
     {text:'Задача без слоя',areaId:'a',days:[]},
+    {text:'Дата в сентябре',areaId:'a',days:['2026-09-12']},
     {text:'Завершённая задача',areaId:'a',layerId:'l2',days:['2026-10-05'],done:true},
     {text:'Другой месяц',areaId:'a',days:['2026-09-05'],done:true}
    ]}));
-   ganttDate=new Date(2026,9,1);taskUICollapsed.ganttDoneHidden=false;
+   ganttDate=new Date(2026,9,1);taskUICollapsed.ganttDoneHidden=false;taskUICollapsed.ganttDatedOnly=false;
    showApp();switchTab('gantt');
   });
   const headings=await page.locator('.gantt-main-table-wrap .gantt-group-label').allTextContents();
   assert.deepEqual(headings,['Без области','Игровой процесс','Без слоя','1. Основа','Звук','2. Детали']);
   assert.equal(await page.locator('.gantt-done-inner-wrap .gantt-task-name').count(),1);
+  const datedToggle=page.locator('#gantt-dated-toggle');
+  assert.equal(await datedToggle.textContent(),'Только с датами этого месяца');
+  assert.equal(await datedToggle.getAttribute('aria-pressed'),'false');
+  await datedToggle.click();
+  assert.equal(await datedToggle.getAttribute('aria-pressed'),'true');
+  assert.deepEqual(await page.locator('.gantt-main-table-wrap .gantt-task-name > span').allTextContents(),[
+   'Очень длинное название задачи: проверить взаимодействие игрока с предметами и переходами между сценами, включая свет, звук и сохранение прогресса',
+   'Настроить детали звука'
+  ]);
+  assert.deepEqual(await page.locator('.gantt-main-table-wrap .gantt-group-label').allTextContents(),['Игровой процесс','1. Основа','Звук','2. Детали']);
+  assert.equal(await page.locator('.gantt-done-inner-wrap .gantt-task-name').count(),1);
+  assert.equal(await page.evaluate(()=>readTaskUIState().ganttDatedOnly),true);
+  await page.evaluate(()=>ganttNext());
+  assert.equal(await page.locator('.gantt-main-table-wrap .gantt-task-name').count(),0);
+  assert.equal(await page.locator('.gantt-main-table-wrap .gantt-group-label').count(),0);
+  assert.equal(await page.locator('.gantt-empty-row').count(),1);
+  await page.evaluate(()=>ganttPrev());
+  assert.equal(await page.locator('.gantt-main-table-wrap .gantt-task-name').count(),2);
+  await page.evaluate(()=>ganttPrev());
+  assert.deepEqual(await page.locator('.gantt-main-table-wrap .gantt-task-name > span').allTextContents(),['Дата в сентябре']);
+  await page.evaluate(()=>ganttNext());
+  await datedToggle.click();
+  assert.equal(await datedToggle.getAttribute('aria-pressed'),'false');
   const main=page.locator('.gantt-main-table-wrap');
   const area=main.getByRole('button',{name:'Игровой процесс',exact:true});
   const foundation=main.getByRole('button',{name:'1. Основа',exact:true});
@@ -66,7 +90,7 @@ const { chromium } = require('playwright');
   assert.equal(await long.evaluate(e=>e.scrollWidth>e.clientWidth),false);
   await page.evaluate(()=>{ganttDate=new Date(2026,10,1);renderGantt()});
   assert.equal(await page.locator('.gantt-done-block').count(),0);
-  assert.equal(await page.locator('.gantt-main-table-wrap .gantt-task-name').count(),4);
+  assert.equal(await page.locator('.gantt-main-table-wrap .gantt-task-name').count(),5);
   console.log('PASS: group collapse/expand, nested and independent state, keyboard, persisted preferences, month switching, area/layer order, completed filtering, wrapped names, date editing, drag mapping and narrow window.');
  } finally {await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
