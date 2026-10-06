@@ -104,6 +104,7 @@ function renderPainting() {
         canvas.append(empty);
     }
     painting.areas.forEach(area => {
+        const members = tasks.map((task, index) => ({ task, index })).filter(t => t.task.areaId === area.id);
         const section = document.createElement('section');
         section.className = 'painting-area';
         const heading = document.createElement('div');
@@ -111,6 +112,9 @@ function renderPainting() {
         const title = document.createElement('h2');
         title.textContent = area.name;
         title.title = area.name;
+        const count = document.createElement('span');
+        count.className = 'painting-area-count';
+        count.textContent = `${paintingText('taskTotal')}: ${members.length}`;
         const edit = document.createElement('button');
         edit.type = 'button';
         edit.className = 'task-btn painting-area-edit';
@@ -118,11 +122,10 @@ function renderPainting() {
         edit.title = paintingText('editArea');
         edit.setAttribute('aria-label', paintingText('editArea') + ': ' + area.name);
         edit.onclick = () => openPaintingAreaDialog(area.id);
-        heading.append(title, edit);
+        heading.append(title, count, edit);
         section.append(heading);
         const bands = document.createElement('div');
         bands.className = 'painting-bands';
-        const members = tasks.map((task, index) => ({ task, index })).filter(t => t.task.areaId === area.id);
         let earlierComplete = true;
         const layers = painting.layers.map(layer => ({ ...layer }));
         if (members.some(t => !t.task.layerId)) layers.push({ id: null, name: paintingText('noLayer') });

@@ -31,6 +31,7 @@ const base = process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765';
             await page.locator('.painting-dialog button[type="submit"]').click();
         }
         assert.equal(await page.locator('.painting-area').count(), 4);
+        assert.deepEqual(await page.locator('.painting-area-count').allTextContents(), ['Задач: 0', 'Задач: 0', 'Задач: 0', 'Задач: 0']);
         await page.locator('[data-i18n="painting.layers"]').click();
         await page.locator('.painting-layer-count input').fill('3');
         await page.locator('.painting-layer-count input').press('Tab');
@@ -43,6 +44,7 @@ const base = process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765';
         const areaId = await page.evaluate(() => painting.areas[0].id);
         const layerId = await page.evaluate(() => painting.layers[0].id);
         await page.locator('select[data-field="areaId"]').selectOption(areaId);
+        assert.equal(await page.locator('.painting-area-count').first().textContent(), 'Задач: 1');
         assert.equal(await page.locator('select[data-field="layerId"]').isDisabled(), false);
         assert(await page.locator('#tasks-active-area').innerText().then(t => t.includes('Без слоя')));
         await page.locator('select[data-field="layerId"]').selectOption(layerId);
@@ -55,6 +57,7 @@ const base = process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765';
         // A real task has one completion state in the list and the painting.
         await page.locator('.task-item input[type="checkbox"]').check();
         await page.locator('[data-tab="painting"]').click();
+        assert.equal(await page.locator('.painting-area-count').first().textContent(), 'Задач: 1');
         assert.equal(await page.locator('.painting-stroke.is-done').count(), 1);
         await page.locator('.painting-stroke').hover();
         assert.match(await page.locator('#painting-task-preview').innerText(), /Старая задача/);
@@ -77,6 +80,7 @@ const base = process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765';
             resetHistory(); render();
         });
         assert.equal(await page.locator('.painting-stroke').count(), 36);
+        assert.deepEqual(await page.locator('.painting-area-count').allTextContents(), ['Задач: 10', 'Задач: 4', 'Задач: 15', 'Задач: 7']);
         assert.equal(await page.locator('.painting-area').nth(2).locator('.painting-band').first().locator('.painting-stroke').count(), 15);
         for (const [width, height] of [[1920, 1080], [1366, 768], [1120, 630]]) {
             await page.setViewportSize({ width, height });

@@ -13,7 +13,8 @@
 .painting-empty { text-align: center; max-width: 420px; padding: 24px; line-height: 1.8; }
 .painting-area { border: 2px solid #000; display: flex; flex-direction: column; min-width: 0; width: 100%; max-width: 560px; background: #fff; }
 .painting-area-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 12px; border-bottom: 1px solid #000; }
-.painting-area-heading h2 { font-size: 13px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.painting-area-heading h2 { flex: 1; min-width: 0; font-size: 13px; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.painting-area-count { flex-shrink: 0; font-size: 11px; font-weight: normal; white-space: nowrap; }
 .painting-area-edit { line-height: 1; }
 .painting-bands { display: flex; flex-direction: column; gap: 7px; padding: 12px; }
 .painting-band { display: grid; grid-template-columns: minmax(0, 96px) minmax(0, 1fr); gap: 8px; align-items: start; min-height: 26px; }

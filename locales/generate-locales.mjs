@@ -26,7 +26,7 @@ const ABOUT_DESC = `Indie Toolbox is a collection of everyday tools to help indi
 const ABOUT_DESC_RU = `Indie Toolbox — набор повседневных инструментов для инди-разработчиков и не только: мелкие задачи без охоты за софтом, установок и онлайн-сервисов — обрезать картинку или свести звук можно прямо в браузере. Здесь собрано то, чего не хватает мне в работе, и список будет расти. Удачи с продуктами. Пусть Сила и терпение будут с вами — и вернутся удачей, которую вы заслуживаете.`;
 
 const baseEn = {
-    "tasks.reorderHint": "Drag a task to move it; use Alt+↑ and Alt+↓ when focused",
+    "tasks.reorderHint": "Drag a task to move it",
     "tasks.reorderTask": "Change order: {name}",
     "tasks.retrySave": "Retry saving",
     "tasks.saveCopy": "Save a copy…",
@@ -34,6 +34,7 @@ const baseEn = {
     "tasks.writeDenied": "The browser did not grant write access. Changes are still in this tab. Retry, save a copy, or download the JSON before closing.",
     "tasks.writeFailed": "Could not write the file. Changes are still in this tab. Retry or save a copy.",
     "painting.tab": "Painting",
+    "painting.taskTotal": "Tasks",
     "painting.addArea": "+ Area",
     "painting.layers": "Layers…",
     "painting.pending": "To do",
@@ -258,7 +259,7 @@ const baseEn = {
 };
 
 const baseRu = {
-    "tasks.reorderHint": "Перетащите задачу; с клавиатуры — Alt+↑ и Alt+↓",
+    "tasks.reorderHint": "Перетащите задачу, чтобы изменить порядок",
     "tasks.reorderTask": "Изменить порядок: {name}",
     "tasks.retrySave": "Повторить сохранение",
     "tasks.saveCopy": "Сохранить копию…",
@@ -266,6 +267,7 @@ const baseRu = {
     "tasks.writeDenied": "Браузер не дал доступ на запись. Изменения остаются в этой вкладке. Повторите сохранение, сохраните копию или скачайте JSON перед закрытием.",
     "tasks.writeFailed": "Не удалось записать файл. Изменения остаются в этой вкладке. Повторите сохранение или сохраните копию.",
     "painting.tab": "Картина",
+    "painting.taskTotal": "Задач",
     "painting.addArea": "+ Область",
     "painting.layers": "Слои…",
     "painting.pending": "Предстоит",

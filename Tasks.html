@@ -224,12 +224,12 @@
             background-image: var(--dither-dot-hover);
             background-size: var(--dither-step) var(--dither-step);
         }
-        .task-item[draggable="true"] { cursor: grab; }
+        .task-item[draggable="true"] { cursor: url('assets/grab-cursor.svg') 12 12, grab; }
         .task-item[draggable="true"]:active, .task-item.task-order-dragging { cursor: move; }
         .task-item .task-actions, .task-item .task-painting-selects, .task-item input { cursor: auto; }
         .task-order-drop-before { box-shadow: inset 0 3px 0 #000; }
         .task-order-drop-after { box-shadow: inset 0 -3px 0 #000; }
-        .gantt-task-name[draggable="true"] { cursor: grab; }
+        .gantt-task-name[draggable="true"] { cursor: url('assets/grab-cursor.svg') 12 12, grab; }
         .gantt-task-name[draggable="true"]:active, .gantt-task-name.task-order-dragging { cursor: move; }
         .gantt-task-name > span { display: block; }
 
@@ -1398,16 +1398,6 @@
                 dragging = null;
                 clearDragStyles(panel);
             });
-            panel.addEventListener('keydown', event => {
-                const source = event.target.closest('.task-item[draggable="true"], .gantt-task-name[draggable="true"]');
-                if (!source || event.target !== source || !event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
-                event.preventDefault();
-                const index = Number(source.dataset.orderTask);
-                const peers = tasks.map((_, i) => i).filter(i => taskOrderGroup(i) === taskOrderGroup(index)).sort(compareTaskOrder);
-                const target = peers[peers.indexOf(index) + (event.key === 'ArrowUp' ? -1 : 1)];
-                if (target === undefined || !reorderTasks(index, target, event.key === 'ArrowUp' ? 'before' : 'after')) return;
-                document.getElementById(panelId).querySelector(`[data-order-task="${index}"]`)?.focus({ preventScroll: true });
-            });
         }
     }
     setupTaskReordering();
@@ -1441,9 +1431,7 @@
         li.dataset.taskIndex = i;
         li.dataset.orderTask = i;
         li.draggable = true;
-        li.tabIndex = 0;
         li.title = I18n.t('tasks.reorderHint');
-        li.setAttribute('aria-label', I18n.t('tasks.reorderTask').replace('{name}', task.text));
 
         let pomoBtn = '';
         if (!task.done) {
@@ -1778,7 +1766,7 @@
             members.forEach((ti) => {
                 const task = tasks[ti];
                 const days = task.days || [];
-                b += `<tr class="gantt-task-row" data-task-index="${ti}"><td class="gantt-task-name${task.done ? ' done-task' : ''}" draggable="true" tabindex="0" data-order-task="${ti}" title="${I18n.t('tasks.reorderHint')}"><span>${escapeHtml(task.text)}</span></td>`;
+                b += `<tr class="gantt-task-row" data-task-index="${ti}"><td class="gantt-task-name${task.done ? ' done-task' : ''}" draggable="true" data-order-task="${ti}" title="${I18n.t('tasks.reorderHint')}"><span>${escapeHtml(task.text)}</span></td>`;
                 for (let d = 1; d <= daysInMonth; d++) {
                     const dt = new Date(y, m, d);
                     const dow = dt.getDay();
