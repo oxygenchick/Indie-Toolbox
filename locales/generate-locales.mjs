@@ -26,7 +26,7 @@ const ABOUT_DESC = `Indie Toolbox is a collection of everyday tools to help indi
 const ABOUT_DESC_RU = `Indie Toolbox — набор повседневных инструментов для инди-разработчиков и не только: мелкие задачи без охоты за софтом, установок и онлайн-сервисов — обрезать картинку или свести звук можно прямо в браузере. Здесь собрано то, чего не хватает мне в работе, и список будет расти. Удачи с продуктами. Пусть Сила и терпение будут с вами — и вернутся удачей, которую вы заслуживаете.`;
 
 const baseEn = {
-    "tasks.reorderHint": "Drag to swap tasks; use ↑ and ↓ when focused",
+    "tasks.reorderHint": "Drag a task to move it; use Alt+↑ and Alt+↓ when focused",
     "tasks.reorderTask": "Change order: {name}",
     "tasks.retrySave": "Retry saving",
     "tasks.saveCopy": "Save a copy…",
@@ -258,7 +258,7 @@ const baseEn = {
 };
 
 const baseRu = {
-    "tasks.reorderHint": "Перетащите для перестановки; стрелки ↑ и ↓ с клавиатуры",
+    "tasks.reorderHint": "Перетащите задачу; с клавиатуры — Alt+↑ и Alt+↓",
     "tasks.reorderTask": "Изменить порядок: {name}",
     "tasks.retrySave": "Повторить сохранение",
     "tasks.saveCopy": "Сохранить копию…",

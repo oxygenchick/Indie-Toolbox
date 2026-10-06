@@ -224,12 +224,13 @@
             background-image: var(--dither-dot-hover);
             background-size: var(--dither-step) var(--dither-step);
         }
-        .task-order-handle { cursor: grab; font-size: 13px; }
-        .task-order-handle:active { cursor: grabbing; }
-        .task-order-drop { box-shadow: inset 0 3px 0 #000; }
-        .task-actions .task-order-handle { margin-left: 12px; }
+        .task-item[draggable="true"] { cursor: grab; }
+        .task-item[draggable="true"]:active, .task-item.task-order-dragging { cursor: move; }
+        .task-item .task-actions, .task-item .task-painting-selects, .task-item input { cursor: auto; }
+        .task-order-drop-before { box-shadow: inset 0 3px 0 #000; }
+        .task-order-drop-after { box-shadow: inset 0 -3px 0 #000; }
         .gantt-task-name[draggable="true"] { cursor: grab; }
-        .gantt-task-name[draggable="true"]:active { cursor: grabbing; }
+        .gantt-task-name[draggable="true"]:active, .gantt-task-name.task-order-dragging { cursor: move; }
         .gantt-task-name > span { display: block; }
 
 
@@ -1314,17 +1315,19 @@
         return JSON.stringify([!!task.done, task.done ? taskMonthKeyDone(task) : taskMonthKeyOpen(task)]);
     }
 
-    function taskOrderHandle(index) {
-        return `<button type="button" class="task-btn task-order-handle" draggable="true" data-order-task="${index}" title="${I18n.t('tasks.reorderHint')}" aria-label="${I18n.t('tasks.reorderTask').replace('{name}', escapeHtml(tasks[index].text))}">&#8691;</button>`;
-    }
-
-    function reorderTasks(sourceIndex, targetIndex) {
+    function reorderTasks(sourceIndex, targetIndex, placement = 'before') {
         if (!tasks[sourceIndex] || !tasks[targetIndex] || sourceIndex === targetIndex) return false;
         if (taskOrderGroup(sourceIndex) !== taskOrderGroup(targetIndex)) return false;
+        const peers = tasks.map((_, i) => i).filter(i => taskOrderGroup(i) === taskOrderGroup(sourceIndex)).sort(compareTaskOrder);
+        const reordered = peers.filter(i => i !== sourceIndex);
+        const targetPosition = reordered.indexOf(targetIndex);
+        reordered.splice(targetPosition + (placement === 'after' ? 1 : 0), 0, sourceIndex);
+        if (reordered.every((i, position) => i === peers[position])) return false;
         recordUndo();
-        const sourceOrder = tasks[sourceIndex].order ?? sourceIndex;
-        tasks[sourceIndex].order = tasks[targetIndex].order ?? targetIndex;
-        tasks[targetIndex].order = sourceOrder;
+        const globalOrder = tasks.map((_, i) => i).sort(compareTaskOrder);
+        const peerPositions = globalOrder.map((i, position) => taskOrderGroup(i) === taskOrderGroup(sourceIndex) ? position : -1).filter(position => position !== -1);
+        peerPositions.forEach((position, i) => { globalOrder[position] = reordered[i]; });
+        globalOrder.forEach((taskIndex, position) => { tasks[taskIndex].order = position; });
         save();
         const list = document.querySelector('.tasks-panel-scroll');
         const gantt = document.querySelector('.gantt-main-table-wrap');
@@ -1344,45 +1347,65 @@
 
     function setupTaskReordering() {
         let dragging = null;
+        const clearDragStyles = panel => {
+            panel.querySelectorAll('.task-order-drop-before, .task-order-drop-after, .task-order-dragging').forEach(item => {
+                item.classList.remove('task-order-drop-before', 'task-order-drop-after', 'task-order-dragging');
+            });
+        };
         for (const panelId of ['panel-tasks', 'panel-gantt']) {
             const panel = document.getElementById(panelId);
+            let disabledRow = null;
+            panel.addEventListener('pointerdown', event => {
+                if (!event.target.closest('button, input, select, textarea, option, label')) return;
+                disabledRow = event.target.closest('.task-item[draggable="true"]');
+                if (disabledRow) disabledRow.draggable = false;
+            }, true);
+            const restoreRow = () => {
+                if (disabledRow?.isConnected) disabledRow.draggable = true;
+                disabledRow = null;
+            };
+            window.addEventListener('pointerup', restoreRow);
+            window.addEventListener('pointercancel', restoreRow);
             panel.addEventListener('dragstart', event => {
-                const handle = event.target.closest('.task-order-handle, .gantt-task-name[draggable="true"]');
-                if (!handle) return;
-                dragging = Number(handle.dataset.orderTask);
+                if (event.target.closest('button, input, select, textarea, option')) { event.preventDefault(); return; }
+                const source = event.target.closest('.task-item[draggable="true"], .gantt-task-name[draggable="true"]');
+                if (!source) return;
+                dragging = Number(source.dataset.orderTask);
+                source.classList.add('task-order-dragging');
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', 'journey-task-order');
             });
             panel.addEventListener('dragover', event => {
                 const row = event.target.closest('.task-item, .gantt-task-row');
                 const target = row ? Number(row.dataset.taskIndex) : null;
+                panel.querySelectorAll('.task-order-drop-before, .task-order-drop-after').forEach(item => item.classList.remove('task-order-drop-before', 'task-order-drop-after'));
                 if (dragging === null || target === null || taskOrderGroup(dragging) !== taskOrderGroup(target)) return;
                 event.preventDefault();
                 event.dataTransfer.dropEffect = 'move';
-                panel.querySelectorAll('.task-order-drop').forEach(item => item.classList.remove('task-order-drop'));
-                row.classList.add('task-order-drop');
+                if (dragging !== target) row.classList.add(event.clientY < row.getBoundingClientRect().top + row.getBoundingClientRect().height / 2 ? 'task-order-drop-before' : 'task-order-drop-after');
             });
             panel.addEventListener('drop', event => {
                 const row = event.target.closest('.task-item, .gantt-task-row');
                 const source = dragging;
                 dragging = null;
-                panel.querySelectorAll('.task-order-drop').forEach(item => item.classList.remove('task-order-drop'));
+                const placement = row?.classList.contains('task-order-drop-after') ? 'after' : 'before';
+                clearDragStyles(panel);
                 if (!row || source === null) return;
                 event.preventDefault();
-                reorderTasks(source, Number(row.dataset.taskIndex));
+                reorderTasks(source, Number(row.dataset.taskIndex), placement);
             });
             panel.addEventListener('dragend', () => {
                 dragging = null;
-                panel.querySelectorAll('.task-order-drop').forEach(item => item.classList.remove('task-order-drop'));
+                clearDragStyles(panel);
             });
             panel.addEventListener('keydown', event => {
-                const handle = event.target.closest('.task-order-handle, .gantt-task-name[draggable="true"]');
-                if (!handle || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+                const source = event.target.closest('.task-item[draggable="true"], .gantt-task-name[draggable="true"]');
+                if (!source || event.target !== source || !event.altKey || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
                 event.preventDefault();
-                const index = Number(handle.dataset.orderTask);
+                const index = Number(source.dataset.orderTask);
                 const peers = tasks.map((_, i) => i).filter(i => taskOrderGroup(i) === taskOrderGroup(index)).sort(compareTaskOrder);
                 const target = peers[peers.indexOf(index) + (event.key === 'ArrowUp' ? -1 : 1)];
-                if (target === undefined || !reorderTasks(index, target)) return;
+                if (target === undefined || !reorderTasks(index, target, event.key === 'ArrowUp' ? 'before' : 'after')) return;
                 document.getElementById(panelId).querySelector(`[data-order-task="${index}"]`)?.focus({ preventScroll: true });
             });
         }
@@ -1416,6 +1439,11 @@
         const isPomoTask = pomoState.active && pomoState.taskIndex === i;
         li.className = 'task-item' + (task.done ? ' done' : '') + (isPomoTask ? ' pomo-active' : '');
         li.dataset.taskIndex = i;
+        li.dataset.orderTask = i;
+        li.draggable = true;
+        li.tabIndex = 0;
+        li.title = I18n.t('tasks.reorderHint');
+        li.setAttribute('aria-label', I18n.t('tasks.reorderTask').replace('{name}', task.text));
 
         let pomoBtn = '';
         if (!task.done) {
@@ -1447,7 +1475,6 @@
                     ? ''
                     : `<button type="button" class="task-btn" onclick="startRenameTask(${i})" title="${I18n.t('tasks.rename')}">${TASK_BTN_SVG.edit}</button>`}
                 <button type="button" class="task-btn" onclick="deleteTask(${i})" title="${I18n.t('tasks.delete')}">${TASK_BTN_SVG.del}</button>
-                ${taskOrderHandle(i)}
             </div>
         `;
         appendTaskPaintingSelects(li, i);
@@ -1775,7 +1802,7 @@
                 return !collapsed;
             }
             if (!painting.areas.length) {
-                appendTasks([...indices].sort(compareTaskOrder));
+                appendTasks([...indices].sort(section === 'done' ? compareDoneIndices : compareOpenIndices));
             } else {
                 const unassigned = indices.filter(i => !tasks[i].areaId);
                 if (unassigned.length) {

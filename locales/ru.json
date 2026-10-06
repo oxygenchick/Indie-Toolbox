@@ -380,7 +380,7 @@
   "painting.moveDown": "Переместить слой ниже",
   "painting.removeLayer": "Удалить слой",
   "tasks.retrySave": "Повторить сохранение",
-  "tasks.reorderHint": "Перетащите для перестановки; стрелки ↑ и ↓ с клавиатуры",
+  "tasks.reorderHint": "Перетащите задачу; с клавиатуры — Alt+↑ и Alt+↓",
   "tasks.reorderTask": "Изменить порядок: {name}",
   "tasks.saveCopy": "Сохранить копию…",
   "tasks.downloadJson": "Скачать JSON",

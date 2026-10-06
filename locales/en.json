@@ -380,7 +380,7 @@
   "painting.moveDown": "Move layer down",
   "painting.removeLayer": "Remove layer",
   "tasks.retrySave": "Retry saving",
-  "tasks.reorderHint": "Drag to swap tasks; use ↑ and ↓ when focused",
+  "tasks.reorderHint": "Drag a task to move it; use Alt+↑ and Alt+↓ when focused",
   "tasks.reorderTask": "Change order: {name}",
   "tasks.saveCopy": "Save a copy…",
   "tasks.downloadJson": "Download JSON",
