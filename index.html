@@ -521,7 +521,7 @@
             audio: { titleKey: 'app.titleAudio', src: 'AudioEditor.html', w: 1050, h: 650 },
             image: { titleKey: 'app.titleImage', src: 'ImageConverter.html', w: 950, h: 700 },
             brief: { titleKey: 'app.titleBrief', src: 'BriefEditor.html', w: 1100, h: 760 },
-            tasks: { titleKey: 'app.titleTasks', src: 'Tasks.html', w: 700, h: 600 },
+            tasks: { titleKey: 'app.titleTasks', src: 'Tasks.html', w: 1120, h: 630 },
             video: { titleKey: 'app.titleVideo', src: 'VideoEditor.html', w: 900, h: 650 },
             story: { titleKey: 'app.titleStory', src: 'StoryBoard.html', w: 1100, h: 760 },
             about: { titleKey: 'app.titleAbout', src: 'About.html', w: 440, h: 400, noResize: true, noMaximize: true, centered: true }
@@ -581,12 +581,16 @@
                 return;
             }
 
-            const cfg = appConfig[appId];
+            const cfg = { ...appConfig[appId] };
             const win = document.createElement('div');
             win.className = 'app-window';
             win.dataset.appId = appId;
 
             const desktopRect = desktop.getBoundingClientRect();
+            if (appId === 'tasks') {
+                cfg.w = Math.max(400, Math.min(cfg.w, desktopRect.width - 32, (desktopRect.height - 24) * 16 / 9));
+                cfg.h = Math.round(cfg.w * 9 / 16);
+            }
             let x, y;
             if (cfg.centered) {
                 x = Math.max(0, (desktopRect.width - cfg.w) / 2);
