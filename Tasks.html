@@ -1440,6 +1440,116 @@
         return (task.days || []).some(d => typeof d === 'string' && d.length >= 7 && d.slice(0, 7) === mk);
     }
 
+    function taskDateText(day) {
+        return `${day.slice(8, 10)}.${day.slice(5, 7)}.${day.slice(0, 4)}`;
+    }
+
+    function taskEditableDays(task) {
+        return [...new Set((Array.isArray(task.days) ? task.days : []).filter(day => typeof day === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(day)))].sort();
+    }
+
+    function taskDatesButton(index) {
+        const task = tasks[index];
+        const days = taskEditableDays(task);
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'task-dates-button';
+        button.textContent = days.length ? taskDateText(days[0]) + (days.length > 1 ? ` +${days.length - 1}` : '') : I18n.t('tasks.addTaskDate');
+        button.title = days.length ? days.map(taskDateText).join(', ') : I18n.t('tasks.addTaskDate');
+        button.setAttribute('aria-label', `${I18n.t('tasks.editTaskDates')}: ${task.text}`);
+        button.onclick = () => openTaskDatesDialog(index);
+        return button;
+    }
+
+    function openTaskDatesDialog(index) {
+        const task = tasks[index];
+        if (!task) return;
+        const original = taskEditableDays(task);
+        const draft = new Set(original);
+        const { dialog, form } = paintingDialog(`${I18n.t('tasks.editTaskDates')}: ${task.text}`);
+        dialog.classList.add('task-dates-dialog');
+        const selected = document.createElement('div');
+        selected.className = 'task-dates-selected';
+        function showSelected() {
+            selected.replaceChildren();
+            if (!draft.size) {
+                selected.textContent = I18n.t('tasks.noTaskDates');
+                return;
+            }
+            [...draft].sort().forEach(day => {
+                const item = document.createElement('span');
+                item.className = 'task-date-item';
+                item.append(document.createTextNode(taskDateText(day)));
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.textContent = '×';
+                remove.setAttribute('aria-label', I18n.t('tasks.removeTaskDate').replace('{date}', taskDateText(day)));
+                remove.onclick = () => { draft.delete(day); showSelected(); };
+                item.append(remove);
+                selected.append(item);
+            });
+        }
+        showSelected();
+        const inputs = document.createElement('div');
+        inputs.className = 'task-dates-inputs';
+        function dateField(labelText) {
+            const label = document.createElement('label');
+            label.textContent = labelText;
+            const input = document.createElement('input');
+            input.type = 'date';
+            label.append(input);
+            inputs.append(label);
+            return input;
+        }
+        const start = dateField(I18n.t('tasks.taskDateStart'));
+        const end = dateField(I18n.t('tasks.taskDateEnd'));
+        const error = document.createElement('p');
+        error.className = 'task-dates-error';
+        error.setAttribute('role', 'alert');
+        const actions = document.createElement('div');
+        actions.className = 'painting-dialog-actions';
+        function addRange() {
+            if (!start.value) { start.focus(); return false; }
+            const first = ganttDayNumber(start.value);
+            const last = ganttDayNumber(end.value || start.value);
+            if (last < first) { error.textContent = I18n.t('tasks.taskDateEndBeforeStart'); end.focus(); return false; }
+            if (last - first > 3660) { error.textContent = I18n.t('tasks.taskDateRangeTooLong'); end.focus(); return false; }
+            for (let day = first; day <= last; day++) draft.add(ganttDateFromNumber(day));
+            error.textContent = '';
+            start.value = '';
+            end.value = '';
+            showSelected();
+            return true;
+        }
+        const add = paintingDialogButton(I18n.t('tasks.addTaskDateRange'), addRange);
+        const clear = paintingDialogButton(I18n.t('tasks.clearTaskDates'), () => { draft.clear(); showSelected(); });
+        clear.classList.add('painting-delete');
+        const cancel = paintingDialogButton(paintingText('cancel'), () => dialog.close());
+        const saveButton = document.createElement('button');
+        saveButton.type = 'submit';
+        saveButton.className = 'mac-btn';
+        saveButton.textContent = paintingText('save');
+        actions.append(clear, add, cancel, saveButton);
+        form.append(selected, inputs, error, actions);
+        form.onsubmit = event => {
+            event.preventDefault();
+            if ((start.value || end.value) && !addRange()) return;
+            const next = [...draft].sort();
+            if (next.join('|') !== original.join('|')) {
+                recordUndo();
+                task.days = next;
+                save();
+                const list = document.querySelector('.tasks-panel-scroll');
+                const listTop = list?.scrollTop ?? 0;
+                render();
+                if (list) list.scrollTop = listTop;
+                renderGantt();
+            }
+            dialog.close();
+        };
+        dialog.showModal();
+    }
+
     function appendTaskToUl(ul, i) {
         const task = tasks[i];
         const li = document.createElement('li');
@@ -1483,6 +1593,7 @@
             </div>
         `;
         appendTaskPaintingSelects(li, i);
+        li.insertBefore(taskDatesButton(i), li.querySelector('.task-actions'));
         if (isEditing) {
             const inp = li.querySelector('.task-rename-input');
             inp.value = task.text;
@@ -1747,6 +1858,10 @@
 
     function renderGantt() {
         const wrap = document.getElementById('gantt-wrap');
+        const scrollPositions = ['.gantt-main-table-wrap', '.gantt-done-inner-wrap'].map(selector => {
+            const element = wrap.querySelector(selector);
+            return element ? [element.scrollLeft, element.scrollTop] : [0, 0];
+        });
         const label = document.getElementById('gantt-month-label');
         const y = ganttDate.getFullYear();
         const m = ganttDate.getMonth();
@@ -1871,6 +1986,10 @@
         wrap.querySelectorAll('[data-gantt-group]').forEach(button => {
             button.onclick = () => toggleGanttGroup(button.dataset.ganttGroup);
         });
+        ['.gantt-main-table-wrap', '.gantt-done-inner-wrap'].forEach((selector, i) => {
+            const element = wrap.querySelector(selector);
+            if (element) { element.scrollLeft = scrollPositions[i][0]; element.scrollTop = scrollPositions[i][1]; }
+        });
     }
 
     function toggleGanttGroup(key) {
@@ -1898,6 +2017,7 @@
         const idx = arr.indexOf(dateStr);
         if (idx >= 0) arr.splice(idx, 1);
         else arr.push(dateStr);
+        arr.sort();
         save();
         renderGantt();
         render();

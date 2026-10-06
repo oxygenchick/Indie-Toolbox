@@ -29,6 +29,16 @@
 .task-painting-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 144px)); gap: 6px; flex-shrink: 0; min-width: 0; }
 .task-painting-selects select { width: 100%; min-width: 0; padding: 2px 5px; border: 2px inset #888; border-radius: 0; background: #fff; color: #000; font: inherit; font-size: 12px; text-overflow: ellipsis; }
 .task-painting-selects select:disabled { color: #888; border-color: #bbb; }
+.task-dates-button { flex-shrink: 0; max-width: 108px; min-height: 24px; padding: 2px 6px; border: 1px solid #000; border-radius: 0; background: #fff; color: #000; font: inherit; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+.task-dates-button:hover { background-image: var(--dither-dot-hover); background-size: var(--dither-step) var(--dither-step); }
+.task-dates-button:focus-visible { outline: 2px solid #000; outline-offset: 2px; }
+.task-dates-dialog { width: 480px; }
+.task-dates-selected { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 29px; margin-bottom: 12px; font-size: 12px; }
+.task-date-item { display: inline-flex; align-items: center; gap: 5px; padding: 2px 4px 2px 7px; border: 1px solid #000; background: #fff; white-space: nowrap; }
+.task-date-item button { border: 0; background: transparent; color: #000; font: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+.task-dates-inputs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.task-dates-dialog .task-dates-inputs label { min-width: 0; }
+.task-dates-error { min-height: 16px; margin: 0; font-size: 11px; }
 .task-painting-group { margin: 0; }
 .task-painting-group > summary { cursor: pointer; padding: 6px 16px 4px; border-bottom: 2px solid #000; background: #fff; font-size: 12px; font-weight: bold; }
 .task-painting-group > summary:hover { background-image: var(--dither-dot-hover); background-size: var(--dither-step) var(--dither-step); }
@@ -62,6 +72,7 @@
     .task-item > .task-text, .task-item > .task-rename-input { grid-column: 2; grid-row: 1; }
     .task-item > .task-actions { grid-column: 3; grid-row: 1; }
     .task-item > .task-painting-selects { grid-column: 2 / 4; grid-row: 2; justify-self: start; max-width: 100%; }
+    .task-item > .task-dates-button { grid-column: 2 / 4; grid-row: 3; justify-self: start; }
 }
 @media (max-width: 480px) {
     .painting-legend { margin-left: 0; gap: 8px 12px; }
