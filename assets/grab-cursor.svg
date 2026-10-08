@@ -1,4 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" shape-rendering="crispEdges">
-  <path d="M9 18V13H12V7H15V5H18V13H20V10H23V14H25V12H28V21L25 28H12L6 20V17H9Z" fill="#fff" stroke="#000" stroke-width="2" stroke-linejoin="round"/>
-  <path d="M18 13V18M23 14V18M12 13V18" fill="none" stroke="#000" stroke-width="2"/>
-</svg>

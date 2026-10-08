@@ -26,8 +26,12 @@ const { chromium } = require('playwright');
   assert.equal(await page.locator('.task-order-handle').count(), 0);
   assert.equal(await page.locator('#tasks-active-area .task-item[draggable="true"]').count(), 4);
   assert.equal(await page.locator('#tasks-active-area .task-item[tabindex], .gantt-task-name[tabindex]').count(), 0);
-  assert.match(await page.locator('#tasks-active-area .task-item').first().evaluate(row => getComputedStyle(row).cursor), /grab-cursor\.svg/);
-  assert.match(await page.locator('.gantt-task-name').first().evaluate(cell => getComputedStyle(cell).cursor), /grab-cursor\.svg/);
+  assert.equal(await page.locator('#tasks-active-area .task-item').first().evaluate(row => getComputedStyle(row).cursor), 'pointer');
+  assert.equal(await page.locator('.gantt-task-name').first().evaluate(cell => getComputedStyle(cell).cursor), 'pointer');
+  await page.evaluate(() => document.body.classList.add('task-order-dragging-active'));
+  assert.equal(await page.locator('#tasks-active-area .task-item').first().evaluate(row => getComputedStyle(row).cursor), 'crosshair');
+  assert.equal(await page.locator('.gantt-task-name').first().evaluate(cell => getComputedStyle(cell).cursor), 'crosshair');
+  await page.evaluate(() => document.body.classList.remove('task-order-dragging-active'));
 
   await page.locator('[data-tab="gantt"]').click();
   assert.deepEqual(await ganttOrder(),await listOrder());
@@ -92,6 +96,6 @@ const { chromium } = require('playwright');
   assert.deepEqual(await listOrder(),['Октябрь 1','Октябрь 2','Ноябрь']);
   await page.locator('[data-tab="gantt"]').click();
   assert.deepEqual(await ganttOrder(),await listOrder());
-  console.log('PASS: row drag, monochrome hand cursor, insertion without swapping, Gantt drag, shared order, group boundary, dates, undo/redo, JSON roundtrip and legacy files.');
+  console.log('PASS: row drag, native pointer and crosshair cursors, insertion without swapping, Gantt drag, shared order, group boundary, dates, undo/redo, JSON roundtrip and legacy files.');
  } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });

@@ -224,13 +224,14 @@
             background-image: var(--dither-dot-hover);
             background-size: var(--dither-step) var(--dither-step);
         }
-        .task-item[draggable="true"] { cursor: url('assets/grab-cursor.svg') 12 12, grab; }
-        .task-item[draggable="true"]:active, .task-item.task-order-dragging { cursor: move; }
+        .task-item[draggable="true"] { cursor: pointer; }
+        .task-item[draggable="true"]:active, .task-item.task-order-dragging { cursor: crosshair; }
         .task-item .task-actions, .task-item .task-painting-selects, .task-item input { cursor: auto; }
         .task-order-drop-before { box-shadow: inset 0 3px 0 #000; }
         .task-order-drop-after { box-shadow: inset 0 -3px 0 #000; }
-        .gantt-task-name[draggable="true"] { cursor: url('assets/grab-cursor.svg') 12 12, grab; }
-        .gantt-task-name[draggable="true"]:active, .gantt-task-name.task-order-dragging { cursor: move; }
+        .gantt-task-name[draggable="true"] { cursor: pointer; }
+        .gantt-task-name[draggable="true"]:active, .gantt-task-name.task-order-dragging { cursor: crosshair; }
+        body.task-order-dragging-active, body.task-order-dragging-active * { cursor: crosshair !important; }
         .gantt-task-name > span { display: block; }
 
 
@@ -1359,6 +1360,7 @@
     function setupTaskReordering() {
         let dragging = null;
         const clearDragStyles = panel => {
+            document.body.classList.remove('task-order-dragging-active');
             panel.querySelectorAll('.task-order-drop-before, .task-order-drop-after, .task-order-dragging').forEach(item => {
                 item.classList.remove('task-order-drop-before', 'task-order-drop-after', 'task-order-dragging');
             });
@@ -1383,6 +1385,7 @@
                 if (!source) return;
                 dragging = Number(source.dataset.orderTask);
                 source.classList.add('task-order-dragging');
+                document.body.classList.add('task-order-dragging-active');
                 event.dataTransfer.effectAllowed = 'move';
                 event.dataTransfer.setData('text/plain', 'journey-task-order');
             });
