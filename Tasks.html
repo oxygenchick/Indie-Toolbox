@@ -16,6 +16,7 @@
     <title>Journey Book</title>
     <link rel="stylesheet" href="dither-ui.css">
     <link rel="stylesheet" href="journey-painting.css">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
         @font-face {
             font-family: 'Chicago';
@@ -941,6 +942,7 @@
                 <button type="button" class="mac-btn history-btn" id="redo-btn" onclick="redoChange()" data-i18n-title="tasks.redo" data-i18n-aria-label="tasks.redo" title="Redo (Ctrl+Shift+Z)" disabled aria-label="Redo">&#8618;</button>
                 </div>
                 <span class="file-status" id="file-status" data-i18n="tasks.noFileLinked">No file linked</span>
+                <button type="button" class="mac-btn" id="calendar-sync-button" onclick="JourneyCalendar.open()">Google Calendar</button>
             </div>
 
             <div class="tab-bar">
@@ -1059,9 +1061,11 @@
 
 <script src="i18n.js"></script>
 <script src="journey-painting.js"></script>
+<script src="journey-google-calendar.js"></script>
 <script>
     let tasks = [];
     let painting = { areas: [], layers: [] };
+    let calendarSync = null;
     let editingTaskIndex = null;
     let renameEscapeBlur = false;
 
@@ -1694,7 +1698,7 @@
         const text = input.value.trim();
         if (!text) return;
         recordUndo();
-        tasks.push({ text, done: false, days: [], areaId: null, layerId: null, order: tasks.reduce((max, task, index) => Math.max(max, task.order ?? index), -1) + 1 });
+        tasks.push({ id: paintingId(), text, done: false, days: [], areaId: null, layerId: null, order: tasks.reduce((max, task, index) => Math.max(max, task.order ?? index), -1) + 1 });
         input.value = '';
         input.focus();
         save();
@@ -2693,6 +2697,7 @@
         try { data = JSON.parse(raw); } catch(e) { data = { tasks: [], notes: [], notesArchived: [], goals: [], journal: [] }; }
         if (!data || typeof data !== 'object') data = {};
         painting = normalizePainting(Array.isArray(data) ? null : data.painting);
+        calendarSync = !Array.isArray(data) && data.calendarSync && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(data.calendarSync.projectId) && typeof data.calendarSync.calendarId === 'string' && data.calendarSync.calendarId ? { projectId: data.calendarSync.projectId, calendarId: data.calendarSync.calendarId } : null;
         if (Array.isArray(data)) {
             tasks = data.map(normalizePaintingTask);
             notesItems = [];
@@ -2719,10 +2724,13 @@
         }
         journalEditingIndex = null;
         notesEditingIndex = null;
+        const seenTaskIds = new Set();
+        tasks.forEach(task => { if (seenTaskIds.has(task.id)) task.id = paintingId(); seenTaskIds.add(task.id); });
+        JourneyCalendar.onFileLoaded();
     }
 
     function getSaveData() {
-        return { tasks, notes: notesItems, notesArchived, goals, journal, painting };
+        return { tasks, notes: notesItems, notesArchived, goals, journal, painting, calendarSync };
     }
 
     function save() {
@@ -2748,7 +2756,7 @@
                 await writable.close();
                 if (fileHandle === handle) {
                     unsavedChanges = JSON.stringify(getSaveData(), null, 2) !== payload;
-                    if (!unsavedChanges) updateStatus(handle.name, true);
+                    if (!unsavedChanges) { updateStatus(handle.name, true); JourneyCalendar.onSaved(); }
                 }
             } catch (e) {
                 if (writable) { try { await writable.abort(); } catch (_) {} }
@@ -2832,6 +2840,8 @@
             fileHandle = handle;
             await storeHandle(handle);
             tasks = [];
+            calendarSync = null;
+            JourneyCalendar.onFileLoaded();
             painting = normalizePainting(null);
             notesItems = [];
             notesArchived = [];
@@ -2926,6 +2936,7 @@
         I18n.applyTo(document.body);
         document.title = I18n.t('tasks.pageTitle');
         applyTabLabels();
+        JourneyCalendar.updateLanguage();
         updateTitleBar();
         window.addEventListener('message', async (e) => {
             const d = e.data;
@@ -2934,6 +2945,7 @@
             await I18n.setLang(d.lang);
             document.title = I18n.t('tasks.pageTitle');
             applyTabLabels();
+            JourneyCalendar.updateLanguage();
             updateTitleBar();
             const app = document.getElementById('app-screen');
             if (app && window.getComputedStyle(app).display !== 'none') refreshAllTaskPanels();

@@ -22,7 +22,7 @@ function normalizePaintingTask(raw, index) {
     const task = raw && typeof raw === 'object' ? raw : {};
     const areaId = painting.areas.some(a => a.id === task.areaId) ? task.areaId : null;
     const layerId = areaId && painting.layers.some(l => l.id === task.layerId) ? task.layerId : null;
-    return { text: typeof task.text === 'string' ? task.text : '', done: !!task.done, days: Array.isArray(task.days) ? task.days : [], areaId, layerId, order: Number.isFinite(task.order) ? task.order : index };
+    return { id: typeof task.id === 'string' && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(task.id) ? task.id : paintingId(), text: typeof task.text === 'string' ? task.text : '', done: !!task.done, days: Array.isArray(task.days) ? task.days : [], areaId, layerId, order: Number.isFinite(task.order) ? task.order : index };
 }
 
 function appendTaskPaintingSelects(row, index) {

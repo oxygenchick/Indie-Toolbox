@@ -5,7 +5,7 @@ const { chromium } = require('playwright');
  const browser = await chromium.launch({headless:true,channel:process.env.PAINTING_BROWSER || 'msedge'});
  try {
   const page=await browser.newPage();
-  await page.goto((process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765')+'/Tasks.html');
+  await page.goto((process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765')+'/Tasks.html',{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.documentElement.classList.contains('i18n-ready'));
   await page.evaluate(async()=>{
    loadData(JSON.stringify({tasks:[{text:'Existing task',done:false,days:['2026-10-05']}]}));

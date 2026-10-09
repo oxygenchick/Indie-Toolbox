@@ -101,8 +101,8 @@ const base = process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765';
         // Earlier layers determine the hatching, including reopening a base task.
         await page.evaluate(() => {
             tasks = [
-                { text: 'Основа', done: false, days: [], areaId: painting.areas[0].id, layerId: painting.layers[0].id, order: 0 },
-                { text: 'Сборка', done: true, days: [], areaId: painting.areas[0].id, layerId: painting.layers[1].id, order: 1 }
+                { id: paintingId(), text: 'Основа', done: false, days: [], areaId: painting.areas[0].id, layerId: painting.layers[0].id, order: 0 },
+                { id: paintingId(), text: 'Сборка', done: true, days: [], areaId: painting.areas[0].id, layerId: painting.layers[1].id, order: 1 }
             ]; render();
         });
         assert.equal(await page.locator('.painting-stroke.is-early').count(), 1);
