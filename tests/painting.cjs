@@ -98,18 +98,19 @@ const base = process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765';
         assert.equal(await page.evaluate(() => tasks.at(-1).layerId), null);
         await page.locator('[data-tab="painting"]').click();
 
-        // Earlier layers determine the hatching, including reopening a base task.
+        // A completed stroke looks the same regardless of other layers.
         await page.evaluate(() => {
             tasks = [
                 { id: paintingId(), text: 'Основа', done: false, days: [], areaId: painting.areas[0].id, layerId: painting.layers[0].id, order: 0 },
                 { id: paintingId(), text: 'Сборка', done: true, days: [], areaId: painting.areas[0].id, layerId: painting.layers[1].id, order: 1 }
             ]; render();
         });
-        assert.equal(await page.locator('.painting-stroke.is-early').count(), 1);
+        assert.equal(await page.locator('.painting-legend > span').count(), 2);
+        assert.equal(await page.locator('.painting-stroke.is-done').count(), 1);
         await page.evaluate(() => toggleTask(0));
-        assert.equal(await page.locator('.painting-stroke.is-early').count(), 0);
+        assert.equal(await page.locator('.painting-stroke.is-done').count(), 2);
         await page.evaluate(() => toggleTask(0));
-        assert.equal(await page.locator('.painting-stroke.is-early').count(), 1);
+        assert.equal(await page.locator('.painting-stroke.is-done').count(), 1);
         const snapshot = await page.evaluate(() => snapshotData());
         await page.locator('[data-i18n="painting.layers"]').click();
         await page.locator('.painting-layer-edit-row').first().getByRole('button', { name: 'Удалить слой', exact: true }).click();
@@ -159,6 +160,6 @@ const base = process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765';
         assert(Math.abs(bounds.width / bounds.height - 16 / 9) < 0.01);
         assert(bounds.x + bounds.width <= 1120);
         assert.deepEqual(errors, []);
-        console.log('PASS: legacy files, hierarchy, assignments, 36-task layout, hover/pinning, completion order, layer count/order/removal, area removal, cancel, undo/redo, save/reload, escaping, EN/RU and desktop shell.');
+        console.log('PASS: legacy files, hierarchy, assignments, 36-task layout, hover/pinning, completion states, layer count/order/removal, area removal, cancel, undo/redo, save/reload, escaping, EN/RU and desktop shell.');
     } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exit(1); });

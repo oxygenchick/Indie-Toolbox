@@ -126,7 +126,6 @@ function renderPainting() {
         section.append(heading);
         const bands = document.createElement('div');
         bands.className = 'painting-bands';
-        let earlierComplete = true;
         const layers = painting.layers.map(layer => ({ ...layer }));
         if (members.some(t => !t.task.layerId)) layers.push({ id: null, name: paintingText('noLayer') });
         layers.forEach(layer => {
@@ -140,13 +139,12 @@ function renderPainting() {
             const strokes = document.createElement('div');
             strokes.className = 'painting-strokes';
             layerTasks.forEach(({ task, index }) => {
-                const early = !!layer.id && task.done && !earlierComplete;
                 const stroke = document.createElement('button');
                 stroke.type = 'button';
-                stroke.className = 'painting-stroke' + (task.done ? (early ? ' is-early' : ' is-done') : '');
+                stroke.className = 'painting-stroke' + (task.done ? ' is-done' : '');
                 stroke.dataset.taskIndex = String(index);
                 stroke.setAttribute('aria-pressed', 'false');
-                const state = paintingText(early ? 'early' : task.done ? 'done' : 'pending');
+                const state = paintingText(task.done ? 'done' : 'pending');
                 stroke.setAttribute('aria-label', task.text + ' — ' + layer.name + ' — ' + state);
                 stroke.title = task.text;
                 const text = document.createElement('span');
@@ -173,7 +171,6 @@ function renderPainting() {
             }
             band.append(label, strokes);
             bands.append(band);
-            if (layer.id) earlierComplete = earlierComplete && layerTasks.length > 0 && layerTasks.every(t => t.task.done);
         });
         section.append(bands);
         canvas.append(section);

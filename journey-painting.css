@@ -4,7 +4,6 @@
 .painting-legend > span { display: flex; align-items: center; gap: 5px; }
 .painting-key { display: inline-block; width: 16px; height: 12px; border: 1px solid #000; background: #fff; }
 .painting-key.is-done { background: #000; }
-.painting-key.is-early { background: repeating-linear-gradient(135deg, #000 0 2px, #fff 2px 5px); }
 .painting-task-preview { padding: 8px 16px; height: 64px; flex-shrink: 0; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; overflow-y: auto; line-height: 1.4; font-size: 13px; }
 .painting-task-preview small { font-size: 11px; color: #555; }
 .painting-scroll { flex: 1; min-height: 0; overflow: auto; padding: 0 16px 16px; }
@@ -22,8 +21,6 @@
 .painting-strokes { display: flex; flex-wrap: wrap; align-content: center; gap: 3px; min-width: 0; }
 .painting-stroke { font: inherit; font-size: 13px; line-height: 24px; height: 26px; padding: 0 4px; flex: 1 1 20px; min-width: 20px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; border: 1px solid #000; border-radius: 0; background: #fff; color: #000; cursor: default; text-align: left; }
 .painting-stroke.is-done { background: #000; color: #fff; }
-.painting-stroke.is-early { background: repeating-linear-gradient(135deg, #000 0 2px, #fff 2px 5px); color: #000; }
-.painting-stroke.is-early span { background: #fff; box-shadow: 1px 0 #fff, -1px 0 #fff; }
 .painting-stroke:hover, .painting-stroke:focus-visible, .painting-stroke[aria-pressed="true"] { outline: 2px solid #000; outline-offset: 1px; position: relative; z-index: 1; }
 .painting-band-empty { flex: 1; min-height: 26px; border: 1px dotted #888; background-image: var(--dither-dot); background-size: var(--dither-step) var(--dither-step); }
 .task-painting-selects { display: grid; grid-template-columns: repeat(2, minmax(0, 144px)); gap: 6px; flex-shrink: 0; min-width: 0; }
@@ -65,6 +62,34 @@
 .painting-dialog [data-calendar-status] { min-height: 18px; margin-top: 10px; font-size: 11px; }
 .painting-dialog [data-calendar-picker] { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .painting-dialog [data-calendar-picker] select { flex: 1 1 190px; }
+.painting-dialog .calendar-guide-link { display: block; margin: 8px 0 14px; padding: 0; border: 0; box-shadow: none; background: none; color: #000; font: inherit; font-size: 12px; text-decoration: underline; text-underline-offset: 2px; text-align: left; cursor: pointer; }
+.painting-dialog .calendar-guide-link:hover { background: none; text-decoration-thickness: 2px; }
+.calendar-guide-dialog { width: min(700px, calc(100vw - 32px)); max-height: min(720px, calc(100vh - 32px)); margin: auto; padding: 0; border: 2px solid #000; border-radius: 0; box-shadow: var(--mac-push-shadow); background: #fff; color: #000; font: inherit; }
+.calendar-guide-dialog[open] { display: flex; flex-direction: column; }
+.calendar-guide-dialog::backdrop { background: rgba(255,255,255,.6); }
+.calendar-guide-dialog .title-bar-controls { display: flex; align-items: center; align-self: stretch; flex-shrink: 0; position: relative; z-index: 2; background: #fff; padding: 0 12px 0 0; }
+.calendar-guide-close { width: 14px; height: 14px; padding: 0; border: 2px solid #000; border-radius: 0; background: #fff; position: relative; flex-shrink: 0; cursor: pointer; }
+.calendar-guide-close::before, .calendar-guide-close::after { content: ''; position: absolute; top: 50%; left: 50%; width: 10px; height: 2px; background: #000; }
+.calendar-guide-close::before { transform: translate(-50%, -50%) rotate(45deg); }
+.calendar-guide-close::after { transform: translate(-50%, -50%) rotate(-45deg); }
+.calendar-guide-close:hover, .calendar-guide-close:active { background: #000; }
+.calendar-guide-close:hover::before, .calendar-guide-close:hover::after, .calendar-guide-close:active::before, .calendar-guide-close:active::after { background: #fff; }
+.calendar-guide-body { flex: 1; min-height: 0; overflow-y: auto; padding: 18px 22px 24px; font-size: 12px; line-height: 1.55; }
+.calendar-guide-intro { margin-bottom: 16px; }
+.calendar-guide-steps { counter-reset: guide; list-style: none; margin: 0; padding: 0; }
+.calendar-guide-steps li { position: relative; padding: 0 0 16px 35px; margin-bottom: 16px; border-bottom: 1px solid #aaa; }
+.calendar-guide-steps li::before { counter-increment: guide; content: counter(guide); position: absolute; left: 0; top: 0; width: 23px; height: 23px; display: grid; place-items: center; border: 1px solid #000; font-size: 12px; line-height: 1; }
+.calendar-guide-body h3 { margin: 1px 0 5px; font-size: 13px; font-weight: bold; }
+.calendar-guide-body p { margin: 0 0 7px; }
+.calendar-guide-body a { color: #000; text-decoration: underline; text-underline-offset: 2px; }
+.calendar-guide-source { margin-top: 7px; }
+.calendar-guide-body code { font: 11px/1.4 monospace; overflow-wrap: anywhere; }
+.calendar-guide-codes { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; }
+.calendar-guide-origin { display: inline-block; padding: 4px 6px; margin: 3px 0 8px; border: 1px solid #000; background: #fff; }
+.calendar-guide-notes { padding: 10px 12px; border: 1px solid #000; background-image: var(--dither-dot); background-size: var(--dither-step) var(--dither-step); }
+.calendar-guide-notes > * { background: #fff; }
+.calendar-guide-footer { display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid #000; }
+.calendar-guide-dialog :focus-visible { outline: 2px solid #000; outline-offset: 2px; }
 /* Windows can be narrow on a desktop too. Keep the shell and task controls usable. */
 .tab-bar { overflow-x: auto; flex-shrink: 0; }
 .tab-bar .tab { flex-shrink: 0; white-space: nowrap; }

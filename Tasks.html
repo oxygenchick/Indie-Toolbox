@@ -993,7 +993,6 @@
                     <div class="painting-legend">
                         <span><i class="painting-key"></i><span data-i18n="painting.pending">To do</span></span>
                         <span><i class="painting-key is-done"></i><span data-i18n="painting.done">Done</span></span>
-                        <span><i class="painting-key is-early"></i><span data-i18n="painting.early">Before earlier layers</span></span>
                     </div>
                 </div>
                 <div id="painting-task-preview" class="painting-task-preview" aria-live="polite" aria-atomic="true"></div>
@@ -2697,7 +2696,16 @@
         try { data = JSON.parse(raw); } catch(e) { data = { tasks: [], notes: [], notesArchived: [], goals: [], journal: [] }; }
         if (!data || typeof data !== 'object') data = {};
         painting = normalizePainting(Array.isArray(data) ? null : data.painting);
-        calendarSync = !Array.isArray(data) && data.calendarSync && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(data.calendarSync.projectId) && typeof data.calendarSync.calendarId === 'string' && data.calendarSync.calendarId ? { projectId: data.calendarSync.projectId, calendarId: data.calendarSync.calendarId } : null;
+        const savedCalendar = !Array.isArray(data) ? data.calendarSync : null;
+        calendarSync = savedCalendar && /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(savedCalendar.projectId) && typeof savedCalendar.calendarId === 'string' && savedCalendar.calendarId
+            ? { projectId: savedCalendar.projectId, calendarId: savedCalendar.calendarId } : null;
+        if (calendarSync) {
+            if (typeof savedCalendar.clientId === 'string' && /^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(savedCalendar.clientId)) calendarSync.clientId = savedCalendar.clientId;
+            if (typeof savedCalendar.accessToken === 'string' && savedCalendar.accessToken && savedCalendar.accessToken.length <= 4096 && Number.isFinite(savedCalendar.tokenExpiresAt)) {
+                calendarSync.accessToken = savedCalendar.accessToken;
+                calendarSync.tokenExpiresAt = savedCalendar.tokenExpiresAt;
+            }
+        }
         if (Array.isArray(data)) {
             tasks = data.map(normalizePaintingTask);
             notesItems = [];
