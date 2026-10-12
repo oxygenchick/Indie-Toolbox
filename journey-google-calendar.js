@@ -3,11 +3,14 @@ const JourneyCalendar = (() => {
     const SCOPES = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly';
     const API = 'https://www.googleapis.com/calendar/v3';
     const CLIENT_KEY = 'indietoolbox_google_calendar_client_id';
+    const EXPIRY_KEY = 'indietoolbox_google_calendar_token_expiry';
+    const SHELL_TOKEN_KEY = 'indietoolbox_google_calendar_shell_token';
     let token = '';
     let tokenExpiresAt = 0;
     let clientId = '';
     let dialog = null;
     let guideDialog = null;
+    let needsConsent = false;
     let syncQueue = Promise.resolve();
     let lastSynced = '';
     let syncTimer = null;
@@ -21,10 +24,35 @@ const JourneyCalendar = (() => {
     }
     function savedClientId() { try { return localStorage.getItem(CLIENT_KEY) || ''; } catch (_) { return ''; } }
     function rememberClientId(value) { try { localStorage.setItem(CLIENT_KEY, value); } catch (_) {} }
+    function rememberTokenExpiry(value) { try { localStorage.setItem(EXPIRY_KEY, String(value)); } catch (_) {} }
     function activeToken() { return !!token && tokenExpiresAt > Date.now() + 30000; }
+    function useShellToken(access) {
+        if (!calendarSync?.clientId || access?.clientId !== calendarSync.clientId
+            || typeof access.accessToken !== 'string' || !access.accessToken
+            || !Number.isFinite(access.tokenExpiresAt) || access.tokenExpiresAt <= Date.now() + 30000
+            || access.tokenExpiresAt <= tokenExpiresAt) return false;
+        token = access.accessToken;
+        tokenExpiresAt = access.tokenExpiresAt;
+        needsConsent = false;
+        calendarSync.accessToken = token;
+        calendarSync.tokenExpiresAt = tokenExpiresAt;
+        rememberTokenExpiry(tokenExpiresAt);
+        return true;
+    }
+    function readShellToken() {
+        try { return JSON.parse(sessionStorage.getItem(SHELL_TOKEN_KEY) || 'null'); }
+        catch (_) { return null; }
+    }
+    function acceptShellToken(access) {
+        if (!useShellToken(access)) return;
+        updateButton();
+        status(label('sessionActive'));
+        if (fileHandle) save().then(() => { if (!unsavedChanges) enqueue(true); });
+    }
     function forgetToken() {
         token = '';
         tokenExpiresAt = 0;
+        rememberTokenExpiry(0);
         updateButton();
         if (calendarSync?.accessToken) {
             delete calendarSync.accessToken;
@@ -42,15 +70,20 @@ const JourneyCalendar = (() => {
         clientId = calendarSync?.clientId || savedClientId();
         const migrateClientId = !!calendarSync && !calendarSync.clientId && !!clientId;
         if (migrateClientId) calendarSync.clientId = clientId;
-        if (migrateClientId) queueMicrotask(() => { if (fileHandle) save(); });
         if (calendarSync?.clientId && calendarSync.accessToken && calendarSync.tokenExpiresAt > Date.now() + 30000) {
             token = calendarSync.accessToken;
             tokenExpiresAt = calendarSync.tokenExpiresAt;
-            queueMicrotask(() => { if (fileHandle && activeToken()) enqueue(); });
         }
+        const shellRestored = useShellToken(readShellToken());
+        rememberTokenExpiry(activeToken() ? tokenExpiresAt : 0);
+        if (migrateClientId || shellRestored) queueMicrotask(() => {
+            if (fileHandle) save().then(() => { if (shellRestored && !unsavedChanges) enqueue(true); });
+        });
+        else if (activeToken()) queueMicrotask(() => { if (fileHandle) enqueue(); });
         lastSynced = '';
         clearTimeout(syncTimer);
         updateButton();
+        status(calendarSync ? (activeToken() ? label('sessionActive') : label('sessionExpired')) : label('notSelected'), !!calendarSync && !activeToken());
         if (dialog) dialog.close();
     }
     function validDay(day) {
@@ -230,22 +263,33 @@ const JourneyCalendar = (() => {
         guide.showModal();
         close.focus();
     }
-    function connect() {
-        const input = dialog?.querySelector('[data-calendar-client]');
-        const id = input?.value.trim() || '';
+    function authorize(id, resumeSelectedCalendar = false) {
         if (!/^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(id)) {
             status(label('invalidClient'), true); return;
         }
-        if (!window.google?.accounts?.oauth2) { status(label('scriptUnavailable'), true); return; }
+        if (!window.google?.accounts?.oauth2) {
+            if (resumeSelectedCalendar) open();
+            status(label('scriptUnavailable'), true); return;
+        }
+        const projectId = calendarSync?.projectId;
+        const authError = message => {
+            needsConsent = true;
+            if (resumeSelectedCalendar && !dialog) open();
+            status(message || label('authFailed'), true);
+        };
         if (clientId !== id) { token = ''; tokenExpiresAt = 0; updateButton(); }
         clientId = id;
         rememberClientId(id);
+        if (resumeSelectedCalendar) status(label('reconnecting'));
         const oauth = google.accounts.oauth2.initTokenClient({
             client_id: id, scope: SCOPES,
             callback: async result => {
-                if (result.error || !result.access_token) { status(result.error_description || result.error || label('authFailed'), true); return; }
+                if (calendarSync?.projectId !== projectId) return;
+                if (result.error || !result.access_token) { authError(result.error_description || result.error); return; }
+                needsConsent = false;
                 token = result.access_token;
                 tokenExpiresAt = Number(result.expires_in) > 0 ? Date.now() + Number(result.expires_in) * 1000 : 0;
+                rememberTokenExpiry(tokenExpiresAt);
                 updateButton();
                 if (calendarSync) {
                     calendarSync.clientId = id;
@@ -258,14 +302,29 @@ const JourneyCalendar = (() => {
                     }
                     await save();
                 }
+                if (resumeSelectedCalendar && calendarSync?.calendarId) {
+                    if (unsavedChanges) { authError(label('saveFileFirst')); return; }
+                    try { await syncNow(true); }
+                    catch (error) { authError(error.message); }
+                    return;
+                }
                 status(label('loadingCalendars'));
                 try { await showCalendars(await calendars()); }
                 catch (error) { status(error.message, true); }
             },
-            error_callback: error => status(error.message || error.type || label('authFailed'), true)
+            error_callback: error => authError(error.message || error.type)
         });
         // A direct click handler keeps the browser's user activation for Google's popup.
-        oauth.requestAccessToken({ prompt: calendarSync?.clientId === id ? '' : 'consent' });
+        try { oauth.requestAccessToken({ prompt: needsConsent || calendarSync?.clientId !== id ? 'consent' : '' }); }
+        catch (error) { authError(error.message); }
+    }
+    function connect() {
+        authorize(dialog?.querySelector('[data-calendar-client]')?.value.trim() || '');
+    }
+    function openOrReconnect() {
+        const id = calendarSync?.clientId || clientId || savedClientId();
+        if (calendarSync?.calendarId && !activeToken() && id) authorize(id, true);
+        else open();
     }
     async function showCalendars(items) {
         if (!dialog?.isConnected) return;
@@ -328,5 +387,8 @@ const JourneyCalendar = (() => {
         built.dialog.showModal();
         input.focus();
     }
-    return { open, onSaved, onFileLoaded, updateLanguage: updateButton, syncNow, desiredEvents, validDay, nextDay };
+    window.addEventListener('message', event => {
+        if (event.source === window.parent && event.origin === location.origin && event.data?.type === 'indietoolbox-calendar-token') acceptShellToken(event.data);
+    });
+    return { open, openOrReconnect, onSaved, onFileLoaded, updateLanguage: updateButton, syncNow, desiredEvents, validDay, nextDay };
 })();

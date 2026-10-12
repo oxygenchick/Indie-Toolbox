@@ -425,7 +425,8 @@
   "calendar.oldCalendarRemains": "The new calendar is synced. Events in the previous calendar remain there.",
   "calendar.untitledTask": "Untitled task",
   "calendar.guideLink": "How to connect Google Calendar",
-  "calendar.credentialsNote": "The Client ID, selected calendar, and temporary access token are saved in the project JSON. Keep the file private. When the token expires, click Connect Google again.",
+  "calendar.credentialsNote": "The Client ID, selected calendar, and temporary access token are saved in the project JSON. Keep the file private. Opening Journey Book from Indie Toolbox renews access automatically; if Google does not allow it, click Google Calendar.",
+  "calendar.reconnecting": "Restoring Google access…",
   "calendar.guideTitle": "Connect Google Calendar",
   "calendar.guideIntro": "Setup for the GitHub Pages site. Menu and button names below match the English Google Cloud Console interface.",
   "calendar.guideStep1Title": "Create a separate calendar",
@@ -446,7 +447,7 @@
   "calendar.guideStep8Title": "Connect in Journey Book",
   "calendar.guideStep8Body": "Open or create the project JSON file. Click Google Calendar, paste the Client ID, and click Connect Google. Approve access, select the separate calendar, and click Use this calendar. Dated tasks become all-day events after the file saves.",
   "calendar.guideNotesTitle": "If connection fails",
-  "calendar.guideNotesBody": "origin_mismatch means the open site's address differs from Authorized JavaScript origins. Check the scheme, host, and port. If access is denied while in Testing, check Test users. Sync is one-way while the tab is open and Google access is active. When the token expires, click Connect Google again.",
+  "calendar.guideNotesBody": "origin_mismatch means the open site's address differs from Authorized JavaScript origins. Check the scheme, host, and port. If access is denied while in Testing, check Test users. Sync is one-way while the tab is open and Google access is active. Opening Journey Book from Indie Toolbox renews access automatically when Google and the browser allow it. Otherwise, click Google Calendar.",
   "calendar.guideOpenSource": "Open at Google ↗",
   "calendar.guideTroubleshooting": "Troubleshoot authorization ↗"
 }

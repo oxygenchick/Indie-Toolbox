@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-Y3HKDGY95Z"></script>
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
     <script>
       window.dataLayer = window.dataLayer || [];
       function gtag(){dataLayer.push(arguments);}
@@ -575,7 +576,42 @@
             }
         }
 
+        function renewJourneyCalendarOnOpen() {
+            const clientKey = 'indietoolbox_google_calendar_client_id';
+            const expiryKey = 'indietoolbox_google_calendar_token_expiry';
+            let clientId, expiresAt;
+            try {
+                clientId = localStorage.getItem(clientKey) || '';
+                expiresAt = Number(localStorage.getItem(expiryKey)) || 0;
+            } catch (_) { return; }
+            if (!/^[0-9]+-[a-z0-9_-]+\.apps\.googleusercontent\.com$/i.test(clientId)
+                || expiresAt > Date.now() + 30000
+                || !window.google?.accounts?.oauth2
+                || navigator.userActivation?.isActive === false) return;
+            try {
+                const oauth = google.accounts.oauth2.initTokenClient({
+                    client_id: clientId,
+                    scope: 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly',
+                    callback: result => {
+                        if (result.error || !result.access_token || Number(result.expires_in) <= 0) return;
+                        const access = {
+                            clientId,
+                            accessToken: result.access_token,
+                            tokenExpiresAt: Date.now() + Number(result.expires_in) * 1000
+                        };
+                        try {
+                            sessionStorage.setItem('indietoolbox_google_calendar_shell_token', JSON.stringify(access));
+                            localStorage.setItem(expiryKey, String(access.tokenExpiresAt));
+                        } catch (_) {}
+                        windows.tasks?.querySelector('iframe')?.contentWindow?.postMessage({ type: 'indietoolbox-calendar-token', ...access }, location.origin);
+                    }
+                });
+                oauth.requestAccessToken({ prompt: '' });
+            } catch (_) { /* The Journey Book button remains available if browser OAuth is blocked. */ }
+        }
+
         function openApp(appId) {
+            if (appId === 'tasks') renewJourneyCalendarOnOpen();
             if (windows[appId]) {
                 bringToFront(appId);
                 return;

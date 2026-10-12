@@ -38,7 +38,8 @@ const { chromium } = require('playwright');
     await page.goto((process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765') + '/Tasks.html', { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.documentElement.classList.contains('i18n-ready'));
     await page.evaluate(() => {
-      window.google = { accounts: { oauth2: { initTokenClient: settings => ({ requestAccessToken: () => settings.callback({ access_token: 'test-token', expires_in: 3600 }) }) } } };
+      window.oauthRequests = [];
+      window.google = { accounts: { oauth2: { initTokenClient: settings => ({ requestAccessToken: options => { window.oauthRequests.push(options.prompt); settings.callback({ access_token: 'test-token', expires_in: 3600 }); } }) } } };
       loadData(JSON.stringify({ tasks: [{ text: 'Первое имя', days: ['2026-10-08', '2026-10-10'] }] }));
       fileHandle = { name: 'test.json', requestPermission: async () => 'granted', createWritable: async () => ({ write: async () => {}, close: async () => {} }) };
       showApp(); refreshAllTaskPanels();
@@ -109,9 +110,14 @@ const { chromium } = require('playwright');
     await page.waitForTimeout(500);
     assert.equal(calls.length, callsBeforeExpired, 'An expired token must not be used');
     assert.equal(await page.locator('#calendar-sync-button').innerText(), 'Google Календарь');
+    const listsBeforeReconnect = calls.filter(call => call.path.endsWith('/calendarList')).length;
     await page.locator('#calendar-sync-button').click();
-    assert.equal(await page.locator('[data-calendar-client]').inputValue(), savedCalendar.clientId);
-    assert.equal(await page.locator('[data-calendar-status]').innerText(), 'Для синхронизации подключите Google');
-    console.log('PASS: Google Calendar sync and project JSON credential restoration.');
+    await page.waitForFunction(() => document.querySelector('#calendar-sync-button')?.title === 'Задачи синхронизированы.');
+    assert.equal(await page.locator('.painting-dialog').count(), 0, 'Resume must not reopen calendar setup');
+    assert(calls.length > callsBeforeExpired, 'One click must resume synchronization');
+    assert.equal(calls.filter(call => call.path.endsWith('/calendarList')).length, listsBeforeReconnect, 'Resume must reuse the selected calendar');
+    assert.equal(await page.evaluate(() => window.oauthRequests.at(-1)), '', 'Previously granted access should not ask for consent again');
+    assert.equal(await page.evaluate(() => getSaveData().calendarSync.clientId), savedCalendar.clientId);
+    console.log('PASS: Google Calendar sync, JSON restoration, and one-click access renewal.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
