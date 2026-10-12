@@ -672,6 +672,20 @@
         .gantt-table .gantt-layer-row th.gantt-group-name { font-weight: normal; }
         .gantt-table thead th { z-index: 3; }
         .gantt-table thead th.gantt-task-hdr { z-index: 4; }
+        .gantt-table th.gantt-date-hdr { height: 34px; }
+        .gantt-date-label { display: block; line-height: 13px; }
+        .gantt-date-dots {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-content: center;
+            gap: 2px 1px;
+            width: 18px;
+            height: 8px;
+            margin: 1px auto 0;
+            background: #fff;
+        }
+        .gantt-date-dot { width: 3px; height: 3px; flex: 0 0 3px; background: #000; }
         .gantt-table td.gantt-day {
             cursor: pointer;
             background: #fff;
@@ -1884,7 +1898,11 @@
         const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
         const colCount = daysInMonth + 1;
 
-        function buildThead() {
+        function buildThead(indices) {
+            const dayCounts = new Map();
+            indices.forEach(index => {
+                new Set(tasks[index].days || []).forEach(day => dayCounts.set(day, (dayCounts.get(day) || 0) + 1));
+            });
             let h = '<thead><tr><th class="gantt-task-hdr">' + I18n.t('tasks.ganttTaskCol') + '</th>';
             for (let d = 1; d <= daysInMonth; d++) {
                 const dt = new Date(y, m, d);
@@ -1893,7 +1911,10 @@
                 let cls = '';
                 if (dow === 0 || dow === 6) cls += ' weekend-hdr';
                 if (dateStr === todayStr) cls += ' today-hdr';
-                h += `<th class="${cls}" title="${dayAbbr(dow)} ${d}">${d}</th>`;
+                const count = dayCounts.get(dateStr) || 0;
+                const dots = '<span class="gantt-date-dot"></span>'.repeat(Math.min(count, 7));
+                const title = `${dayAbbr(dow)} ${d}${count ? ' · ' + I18n.t('tasks.ganttDayCount').replace('{count}', String(count)) : ''}`;
+                h += `<th class="gantt-date-hdr${cls}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"><span class="gantt-date-label">${d}</span><span class="gantt-date-dots" aria-hidden="true">${dots}</span></th>`;
             }
             h += '</tr></thead>';
             return h;
@@ -1954,8 +1975,8 @@
             return b;
         }
 
-        function tableStart() {
-            return `<table class="gantt-table${painting.areas.length ? ' is-grouped' : ''}" style="--gantt-days:${daysInMonth}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${daysInMonth}"></colgroup>${buildThead()}`;
+        function tableStart(indices) {
+            return `<table class="gantt-table${painting.areas.length ? ' is-grouped' : ''}" style="--gantt-days:${daysInMonth}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${daysInMonth}"></colgroup>${buildThead(indices)}`;
         }
 
         const openIndices = tasks.map((_, ti) => ti).filter((ti) => !tasks[ti].done && (!taskUICollapsed.ganttDatedOnly || taskHasDayInGanttMonth(tasks[ti], y, m)));
@@ -1963,7 +1984,7 @@
             (ti) => tasks[ti].done && taskHasDayInGanttMonth(tasks[ti], y, m)
         );
 
-        let mainTable = tableStart();
+        let mainTable = tableStart(openIndices);
         if (openIndices.length === 0) {
             mainTable += `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">${I18n.t('tasks.ganttEmptyRow')}</td></tr></tbody>`;
         } else {
@@ -1979,7 +2000,7 @@
                 <div class="gantt-done-block">
                     <button type="button" class="task-done-toggle" onclick="toggleGanttDoneSection()">${chevron} ${I18n.t('tasks.ganttCompletedThisMonth')} (${doneThisMonthIndices.length})</button>
                     <div class="gantt-done-inner-wrap" id="gantt-done-inner" style="display:${hidden ? 'none' : 'block'}">
-                        ${tableStart()}${buildBodyRows(doneThisMonthIndices, 'done')}</table>
+                        ${tableStart(doneThisMonthIndices)}${buildBodyRows(doneThisMonthIndices, 'done')}</table>
                     </div>
                 </div>`;
         }

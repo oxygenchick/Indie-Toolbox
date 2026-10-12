@@ -246,6 +246,7 @@
   "tasks.expandGoal": "Развернуть цель",
   "tasks.archived": "Архив",
   "tasks.ganttTaskCol": "Задача",
+  "tasks.ganttDayCount": "Задач: {count}",
   "tasks.addTaskDate": "Дата +",
   "tasks.editTaskDates": "Даты задачи",
   "tasks.noTaskDates": "Даты не выбраны",

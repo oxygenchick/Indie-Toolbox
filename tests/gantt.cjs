@@ -4,6 +4,7 @@ const { chromium } = require('playwright');
  const browser = await chromium.launch({headless:true,channel:process.env.PAINTING_BROWSER || 'msedge'});
  try {
   const page=await browser.newPage({viewport:{width:1366,height:768},locale:'ru-RU'});
+  await page.route('https://**/*',route=>route.abort());
   await page.goto((process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765')+'/Tasks.html');
   await page.waitForFunction(()=>document.documentElement.classList.contains('i18n-ready'));
   await page.evaluate(()=>{
@@ -22,6 +23,8 @@ const { chromium } = require('playwright');
   const headings=await page.locator('.gantt-main-table-wrap .gantt-group-label').allTextContents();
   assert.deepEqual(headings,['Без области','Игровой процесс','Без слоя','1. Основа','Звук','2. Детали']);
   assert.equal(await page.locator('.gantt-done-inner-wrap .gantt-task-name').count(),1);
+  assert.equal(await page.locator('.gantt-main-table-wrap .gantt-date-hdr').nth(4).locator('.gantt-date-dot').count(),1);
+  assert.equal(await page.locator('.gantt-done-inner-wrap .gantt-date-hdr').nth(4).locator('.gantt-date-dot').count(),1);
   const datedToggle=page.locator('#gantt-dated-toggle');
   assert.equal(await datedToggle.textContent(),'Только с датами этого месяца');
   assert.equal(await datedToggle.getAttribute('aria-pressed'),'false');
@@ -91,6 +94,18 @@ const { chromium } = require('playwright');
   await page.evaluate(()=>{ganttDate=new Date(2026,10,1);renderGantt()});
   assert.equal(await page.locator('.gantt-done-block').count(),0);
   assert.equal(await page.locator('.gantt-main-table-wrap .gantt-task-name').count(),5);
+  await page.evaluate(()=>{
+   tasks=Array.from({length:9},(_,i)=>({text:'Task '+i,days:['2026-10-05'],done:false}));
+   ganttDate=new Date(2026,9,1);renderGantt();
+  });
+  const dayHeader=page.locator('.gantt-main-table-wrap .gantt-date-hdr').nth(4);
+  assert.equal(await dayHeader.locator('.gantt-date-dot').count(),7);
+  assert.match(await dayHeader.getAttribute('title'),/Задач: 9/);
+  assert.equal(await dayHeader.evaluate(header=>{
+   const number=header.querySelector('.gantt-date-label').getBoundingClientRect();
+   const dots=header.querySelector('.gantt-date-dots').getBoundingClientRect();
+   return Math.abs((number.left+number.right)/2-(dots.left+dots.right)/2)<1 && dots.top>=number.bottom;
+  }),true);
   console.log('PASS: group collapse/expand, nested and independent state, keyboard, persisted preferences, month switching, area/layer order, completed filtering, wrapped names, date editing, drag mapping and narrow window.');
  } finally {await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});

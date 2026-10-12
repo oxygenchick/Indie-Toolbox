@@ -246,6 +246,7 @@
   "tasks.expandGoal": "Expand goal",
   "tasks.archived": "Archived",
   "tasks.ganttTaskCol": "Task",
+  "tasks.ganttDayCount": "Tasks: {count}",
   "tasks.addTaskDate": "Date +",
   "tasks.editTaskDates": "Task dates",
   "tasks.noTaskDates": "No dates selected",
