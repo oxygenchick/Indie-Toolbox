@@ -675,22 +675,23 @@
         .gantt-table thead th.gantt-task-hdr { z-index: 4; }
         .gantt-table th.gantt-date-hdr { height: 34px; }
         .gantt-date-label { display: block; line-height: 13px; }
-        .gantt-date-filter { display: block; width: 100%; padding: 3px 0; border: 0; background: transparent; color: #000; font: inherit; cursor: pointer; }
+        .gantt-date-filter { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-sizing: border-box; width: 100%; height: 100%; padding: 4px 3px; border: 0; overflow: hidden; background: transparent; color: #000; font: inherit; cursor: pointer; }
         .gantt-date-filter:hover { outline: 1px dotted #000; outline-offset: -2px; }
         .gantt-date-filter:focus-visible { outline: 2px solid #000; outline-offset: -2px; }
         .gantt-date-filter[aria-pressed="true"] { box-shadow: inset 0 0 0 2px #000; }
         .gantt-date-dots {
-            display: flex;
-            flex-wrap: wrap;
+            display: grid;
+            grid-template-columns: repeat(3, 3px);
+            grid-auto-rows: 3px;
             justify-content: center;
             align-content: center;
-            gap: 2px 1px;
-            width: 18px;
-            min-height: 10px;
-            margin: 1px auto 0;
-            background: #fff;
+            gap: 1px;
+            width: 11px;
+            height: 7px;
+            flex: 0 0 7px;
+            margin: 0;
         }
-        .gantt-date-dot { box-sizing: border-box; width: 4px; height: 4px; flex: 0 0 4px; border: 1px solid #000; border-radius: 50%; background: #fff; }
+        .gantt-date-dot { box-sizing: border-box; width: 3px; height: 3px; border: 1px solid #000; border-radius: 50%; background: #fff; }
         .gantt-date-dot.is-done { background: #000; }
         .gantt-table td.gantt-day {
             cursor: pointer;
@@ -1926,7 +1927,8 @@
                 if (dateStr === todayStr) cls += ' today-hdr';
                 const counts = dayCounts.get(dateStr) || { open: 0, done: 0 };
                 const count = counts.open + counts.done;
-                const dots = '<span class="gantt-date-dot is-done"></span>'.repeat(counts.done) + '<span class="gantt-date-dot"></span>'.repeat(counts.open);
+                const doneDots = Math.min(counts.done, 6);
+                const dots = '<span class="gantt-date-dot is-done"></span>'.repeat(doneDots) + '<span class="gantt-date-dot"></span>'.repeat(Math.min(counts.open, 6 - doneDots));
                 const title = `${dayAbbr(dow)} ${d}${count ? ' · ' + I18n.t('tasks.ganttDayCount').replace('{count}', String(count)) + ' · ' + I18n.t('tasks.completed') + ': ' + counts.done : ''}`;
                 h += `<th class="gantt-date-hdr${cls}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"><button type="button" class="gantt-date-filter" data-gantt-date-filter="${dateStr}" aria-label="${escapeHtml(title)}" aria-pressed="${ganttSelectedDay === dateStr}"><span class="gantt-date-label">${d}</span><span class="gantt-date-dots" aria-hidden="true">${dots}</span></button></th>`;
             }

@@ -47,6 +47,14 @@ const project = {
     const date = day => main.locator(`[data-gantt-date-filter="2026-10-${day}"]`);
     await date('05').click();
     assert.equal(await date('05').getAttribute('aria-pressed'), 'true');
+    assert.equal(await date('05').evaluate(button => {
+      const cell = button.parentElement.getBoundingClientRect();
+      const frame = button.getBoundingClientRect();
+      const dots = button.querySelector('.gantt-date-dots').getBoundingClientRect();
+      return Math.abs(frame.height - cell.height) <= 2 && Math.abs(frame.width - cell.width) <= 2
+        && dots.left >= frame.left + 2 && dots.right <= frame.right - 2
+        && dots.top >= frame.top + 2 && dots.bottom <= frame.bottom - 2;
+    }), true, 'Selection must fill the header cell and contain dots inside the frame');
     assert.deepEqual(await main.locator('.gantt-task-name > span').allTextContents(), ['Первая', 'Вторая', 'Готовая']);
     assert.equal(await page.locator('.gantt-group-toggle, .gantt-done-block').count(), 0);
     if (process.env.TASK_UI_SCREENSHOT) await page.screenshot({ path: process.env.TASK_UI_SCREENSHOT });
