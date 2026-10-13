@@ -418,7 +418,7 @@
                 <label class="type-sound-volume-label" id="type-sound-volume-wrap" hidden>
                     <span data-i18n="brief.typeSoundVolume">Typewriter volume</span>
                     <span class="type-sound-vol-slider-group">
-                        <input type="range" id="type-sound-volume" min="0" max="100" value="80" data-i18n-aria-label="brief.typeSoundVolume" aria-label="Typewriter volume">
+                        <input type="range" id="type-sound-volume" min="0" max="200" value="80" data-i18n-aria-label="brief.typeSoundVolume" aria-label="Typewriter volume">
                         <span class="type-sound-vol-display" id="type-sound-volume-pct" aria-hidden="true">80%</span>
                     </span>
                 </label>
@@ -552,7 +552,10 @@
             try {
                 typeSoundEnabledEl.checked = localStorage.getItem(TYPE_SOUND_LS_ON) === '1';
                 const v = localStorage.getItem(TYPE_SOUND_LS_VOL);
-                if (v != null && v !== '') typeSoundVolumeEl.value = String(clamp(parseInt(v, 10) || 80, 0, 100));
+                if (v != null && v !== '') {
+                    const volume = parseInt(v, 10);
+                    typeSoundVolumeEl.value = String(clamp(Number.isNaN(volume) ? 80 : volume, 0, 200));
+                }
             } catch (e) { /* ignore */ }
             syncTypeSoundVolumeWrap();
             syncTypeSoundVolumePct();
@@ -591,7 +594,7 @@
         function playTypewriterSoundWithElement(vol) {
             const url = TYPE_SOUND_URLS[pickTypeSoundIndex()];
             const a = new Audio(url);
-            a.volume = vol;
+            a.volume = Math.min(vol, 1);
             const cents = (Math.random() * 2 - 1) * TYPE_SOUND_DETUNE_MAX;
             a.playbackRate = Math.pow(2, cents / 1200);
             a.play().catch(() => {});
