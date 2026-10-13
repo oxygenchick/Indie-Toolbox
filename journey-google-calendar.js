@@ -132,7 +132,9 @@ const JourneyCalendar = (() => {
         if (!response.ok) {
             let detail = '';
             try { detail = (await response.json()).error?.message || ''; } catch (_) {}
-            throw new Error(detail || `Google Calendar: HTTP ${response.status}`);
+            const error = new Error(detail || `Google Calendar: HTTP ${response.status}`);
+            error.status = response.status;
+            throw error;
         }
         return response.status === 204 ? null : response.json();
     }
@@ -150,7 +152,37 @@ const JourneyCalendar = (() => {
     async function calendars() {
         return pages('/users/me/calendarList?minAccessRole=writer&maxResults=250');
     }
-    async function syncNow(force = false) {
+    function eventKey(event, projectId) {
+        const properties = event.extendedProperties?.private;
+        return properties?.indietoolboxProject === projectId && properties.indietoolboxTask && validDay(properties.indietoolboxDay)
+            ? eventId(projectId, properties.indietoolboxTask, properties.indietoolboxDay) : event.id;
+    }
+    async function insertEvent(path, event, projectId) {
+        let candidate = event;
+        for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+                await request(path, { method: 'POST', body: JSON.stringify(candidate) });
+                return;
+            } catch (error) {
+                if (error.status !== 409 || attempt === 2) throw error;
+                // Google keeps deleted IDs reserved. An existing live event may also
+                // be absent from a list response, so look it up before replacing it.
+                let existing;
+                try { existing = await request(path + '/' + encodeURIComponent(candidate.id)); }
+                catch (lookupError) { if (![404, 410].includes(lookupError.status)) throw lookupError; }
+                if (existing && existing.status !== 'cancelled'
+                    && existing.extendedProperties?.private?.indietoolboxProject === projectId
+                    && eventKey(existing, projectId) === event.id) {
+                    await request(path + '/' + encodeURIComponent(existing.id), {
+                        method: 'PATCH', body: JSON.stringify({ summary: event.summary, start: event.start, end: event.end })
+                    });
+                    return;
+                }
+                candidate = { ...event, id: event.id + crypto.randomUUID().replace(/-/g, '') };
+            }
+        }
+    }
+    async function performSync(force = false) {
         if (!calendarSync || !activeToken() || !fileHandle || unsavedChanges) return;
         const selected = { ...calendarSync };
         const current = fingerprint();
@@ -161,30 +193,34 @@ const JourneyCalendar = (() => {
         const wanted = desiredEvents();
         if (calendarSync?.calendarId !== selected.calendarId || calendarSync?.projectId !== selected.projectId) return;
         for (const event of existing) {
-            const desired = wanted.get(event.id);
+            const key = eventKey(event, selected.projectId);
+            const desired = wanted.get(key);
             if (!desired) {
                 await request(path + '/' + encodeURIComponent(event.id), { method: 'DELETE' });
                 continue;
             }
-            wanted.delete(event.id);
+            wanted.delete(key);
             if (event.summary !== desired.summary || event.start?.date !== desired.start.date || event.end?.date !== desired.end.date) {
                 await request(path + '/' + encodeURIComponent(event.id), { method: 'PATCH', body: JSON.stringify({ summary: desired.summary, start: desired.start, end: desired.end }) });
             }
         }
         for (const event of wanted.values()) {
-            await request(path, { method: 'POST', body: JSON.stringify(event) });
+            await insertEvent(path, event, selected.projectId);
         }
         lastSynced = current;
         status(label('synced'));
     }
+    function syncNow(force = false) {
+        syncQueue = syncQueue.catch(() => {}).then(() => performSync(force));
+        return syncQueue;
+    }
     function enqueue(force = false) {
         if (!activeToken()) { forgetToken(); status(label('sessionInactive'), true); return Promise.resolve(); }
         if (!calendarSync) { status(label('notSelected'), true); return Promise.resolve(); }
-        syncQueue = syncQueue.catch(() => {}).then(() => syncNow(force)).catch(error => {
+        return syncNow(force).catch(error => {
             console.warn('Google Calendar sync failed:', error);
             status(error.message || label('syncFailed'), true);
         });
-        return syncQueue;
     }
     function onSaved() {
         if (!calendarSync || !activeToken()) return;

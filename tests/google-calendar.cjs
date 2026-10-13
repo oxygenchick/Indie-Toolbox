@@ -6,6 +6,8 @@ const { chromium } = require('playwright');
   try {
     const page = await browser.newPage({ viewport: { width: 1100, height: 720 }, locale: 'ru-RU' });
     const events = new Map();
+    const deletedEvents = new Map();
+    let omitFromNextList = null;
     const calls = [];
     await page.route('https://accounts.google.com/gsi/client', route => route.fulfill({ status: 200, contentType: 'text/javascript', body: '' }));
     await page.route('https://www.googleapis.com/calendar/v3/**', async route => {
@@ -17,18 +19,21 @@ const { chromium } = require('playwright');
       }
       const root = '/calendar/v3/calendars/chosen%40example.com/events';
       assert(url.pathname.startsWith(root), 'Only the chosen calendar can be changed');
-      if (req.method() === 'GET') {
+      if (req.method() === 'GET' && url.pathname === root) {
         const match = url.searchParams.get('privateExtendedProperty');
-        return route.fulfill({ json: { items: [...events.values()].filter(event => match === 'indietoolboxProject=' + event.extendedProperties?.private?.indietoolboxProject) } });
+        const omitted = omitFromNextList;
+        omitFromNextList = null;
+        return route.fulfill({ json: { items: [...events.values()].filter(event => event.id !== omitted && match === 'indietoolboxProject=' + event.extendedProperties?.private?.indietoolboxProject) } });
       }
       if (req.method() === 'POST') {
         const event = req.postDataJSON();
-        if (events.has(event.id)) return route.fulfill({ status: 409, json: { error: { message: 'duplicate' } } });
+        if (events.has(event.id) || deletedEvents.has(event.id)) return route.fulfill({ status: 409, json: { error: { message: 'The requested identifier already exists.' } } });
         events.set(event.id, event);
         return route.fulfill({ json: event });
       }
       const id = decodeURIComponent(url.pathname.slice(root.length + 1));
-      if (req.method() === 'DELETE') { events.delete(id); return route.fulfill({ status: 204, body: '' }); }
+      if (req.method() === 'GET') return route.fulfill({ json: events.get(id) || { id, status: 'cancelled' } });
+      if (req.method() === 'DELETE') { deletedEvents.set(id, events.get(id)); events.delete(id); return route.fulfill({ status: 204, body: '' }); }
       if (req.method() === 'PATCH') {
         Object.assign(events.get(id), req.postDataJSON());
         return route.fulfill({ json: events.get(id) });
@@ -98,6 +103,30 @@ const { chromium } = require('playwright');
     await page.waitForTimeout(700);
     assert.equal(events.size, 2);
     assert.equal([...events.values()].find(event => event.id !== 'unrelated').summary, 'Новое имя');
+    await page.evaluate(async () => {
+      toggleGanttDay(0, '2026-10-08');
+      document.getElementById('add-input').value = 'Новая задача после конфликта';
+      addTask();
+      toggleGanttDay(1, '2026-10-12');
+      await save();
+      await JourneyCalendar.syncNow(true);
+    });
+    assert.equal(events.size, 4, 'Reassigned dates and subsequent new tasks must both sync');
+    const restored = [...events.values()].find(event => event.start?.date === '2026-10-08');
+    assert(restored && !deletedEvents.has(restored.id), 'A deleted Google event ID must not be reused');
+    await page.evaluate(async () => { toggleTask(0); await save(); await JourneyCalendar.syncNow(true); });
+    assert.equal(events.size, 4, 'Replacement IDs must be reused without duplicates');
+    assert.equal(events.get(restored.id).summary, '✓ Новое имя');
+    omitFromNextList = [...events.values()].find(event => event.start?.date === '2026-10-10').id;
+    await page.evaluate(() => JourneyCalendar.syncNow(true));
+    assert.equal(events.size, 4, 'A live conflicting event must be reused, not duplicated');
+    await page.evaluate(async () => {
+      toggleGanttDay(1, '2026-10-13');
+      await save();
+      await Promise.all([JourneyCalendar.syncNow(true), JourneyCalendar.syncNow(true)]);
+    });
+    assert.equal(events.size, 5, 'Concurrent sync requests must not create duplicate events');
+    await page.evaluate(async () => { tasks.splice(1, 1); await save(); await JourneyCalendar.syncNow(true); });
     await page.evaluate(async () => { tasks.splice(0, 1); await save(); });
     await page.waitForTimeout(700);
     assert.deepEqual([...events.keys()], ['unrelated']);
@@ -118,6 +147,6 @@ const { chromium } = require('playwright');
     assert.equal(calls.filter(call => call.path.endsWith('/calendarList')).length, listsBeforeReconnect, 'Resume must reuse the selected calendar');
     assert.equal(await page.evaluate(() => window.oauthRequests.at(-1)), '', 'Previously granted access should not ask for consent again');
     assert.equal(await page.evaluate(() => getSaveData().calendarSync.clientId), savedCalendar.clientId);
-    console.log('PASS: Google Calendar sync, JSON restoration, and one-click access renewal.');
+    console.log('PASS: Google Calendar sync, deleted/live ID conflicts, subsequent new dated tasks, replacement updates/deletion, serialized sync, JSON restoration, and access renewal.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
