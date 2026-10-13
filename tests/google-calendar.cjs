@@ -48,7 +48,7 @@ const { chromium } = require('playwright');
     await page.locator('.calendar-guide-link').click();
     assert.equal(await page.locator('.calendar-guide-dialog').isVisible(), true);
     assert.equal(await page.locator('.calendar-guide-steps li').count(), 8);
-    assert.equal(await page.locator('.calendar-guide-origin').textContent(), 'http://127.0.0.1:8765');
+    assert.equal(await page.locator('.calendar-guide-origin').textContent(), new URL(page.url()).origin);
     assert.match(await page.locator('.calendar-guide-body').innerText(), /Пояснения даны по-русски/);
     await page.locator('.calendar-guide-close').click();
     assert.equal(await page.locator('.painting-dialog').isVisible(), true);

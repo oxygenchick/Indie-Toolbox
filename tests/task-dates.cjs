@@ -5,6 +5,7 @@ const { chromium } = require('playwright');
   const browser = await chromium.launch({ headless: true, channel: process.env.PAINTING_BROWSER || 'msedge' });
   try {
     const page = await browser.newPage({ viewport: { width: 560, height: 450 }, locale: 'ru-RU' });
+    await page.route('https://**/*', route => route.abort());
     await page.goto((process.env.PAINTING_TEST_URL || 'http://127.0.0.1:8765') + '/Tasks.html');
     await page.waitForFunction(() => document.documentElement.classList.contains('i18n-ready'));
     await page.evaluate(() => {
