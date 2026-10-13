@@ -675,6 +675,10 @@
         .gantt-table thead th.gantt-task-hdr { z-index: 4; }
         .gantt-table th.gantt-date-hdr { height: 34px; }
         .gantt-date-label { display: block; line-height: 13px; }
+        .gantt-date-filter { display: block; width: 100%; padding: 3px 0; border: 0; background: transparent; color: #000; font: inherit; cursor: pointer; }
+        .gantt-date-filter:hover { outline: 1px dotted #000; outline-offset: -2px; }
+        .gantt-date-filter:focus-visible { outline: 2px solid #000; outline-offset: -2px; }
+        .gantt-date-filter[aria-pressed="true"] { box-shadow: inset 0 0 0 2px #000; }
         .gantt-date-dots {
             display: flex;
             flex-wrap: wrap;
@@ -1132,6 +1136,7 @@
     };
     let ganttDate = new Date();
     ganttDate.setDate(1);
+    let ganttSelectedDay = null;
     let journalViewDate = new Date();
     journalViewDate.setDate(1);
     let notesViewDate = new Date();
@@ -1888,6 +1893,7 @@
         const label = document.getElementById('gantt-month-label');
         const y = ganttDate.getFullYear();
         const m = ganttDate.getMonth();
+        if (ganttSelectedDay && !ganttSelectedDay.startsWith(`${y}-${String(m + 1).padStart(2, '0')}-`)) ganttSelectedDay = null;
         label.textContent = `${monthFull(m)} ${y}`;
         document.getElementById('gantt-dated-toggle').setAttribute('aria-pressed', String(!!taskUICollapsed.ganttDatedOnly));
 
@@ -1922,7 +1928,7 @@
                 const count = counts.open + counts.done;
                 const dots = '<span class="gantt-date-dot is-done"></span>'.repeat(counts.done) + '<span class="gantt-date-dot"></span>'.repeat(counts.open);
                 const title = `${dayAbbr(dow)} ${d}${count ? ' · ' + I18n.t('tasks.ganttDayCount').replace('{count}', String(count)) + ' · ' + I18n.t('tasks.completed') + ': ' + counts.done : ''}`;
-                h += `<th class="gantt-date-hdr${cls}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"><span class="gantt-date-label">${d}</span><span class="gantt-date-dots" aria-hidden="true">${dots}</span></th>`;
+                h += `<th class="gantt-date-hdr${cls}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"><button type="button" class="gantt-date-filter" data-gantt-date-filter="${dateStr}" aria-label="${escapeHtml(title)}" aria-pressed="${ganttSelectedDay === dateStr}"><span class="gantt-date-label">${d}</span><span class="gantt-date-dots" aria-hidden="true">${dots}</span></button></th>`;
             }
             h += '</tr></thead>';
             return h;
@@ -1957,7 +1963,9 @@
                 b += `<tr class="gantt-${kind}-row"><th class="gantt-group-name" scope="row"><button type="button" class="gantt-group-toggle" data-gantt-group="${key}" aria-expanded="${!collapsed}"><span aria-hidden="true">${collapsed ? '\u25b8' : '\u25be'}</span><span class="gantt-group-label">${escapeHtml(text)}</span></button></th><td colspan="${daysInMonth}" aria-hidden="true"></td></tr>`;
                 return !collapsed;
             }
-            if (!painting.areas.length) {
+            if (ganttSelectedDay) {
+                appendTasks([...indices].sort((a, b) => Number(tasks[a].done) - Number(tasks[b].done) || compareTaskOrder(a, b)));
+            } else if (!painting.areas.length) {
                 appendTasks([...indices].sort(section === 'done' ? compareDoneIndices : compareOpenIndices));
             } else {
                 const unassigned = indices.filter(i => !tasks[i].areaId);
@@ -1984,7 +1992,7 @@
         }
 
         function tableStart(indices) {
-            return `<table class="gantt-table${painting.areas.length ? ' is-grouped' : ''}" style="--gantt-days:${daysInMonth}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${daysInMonth}"></colgroup>${buildThead(indices)}`;
+            return `<table class="gantt-table${painting.areas.length && !ganttSelectedDay ? ' is-grouped' : ''}" style="--gantt-days:${daysInMonth}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${daysInMonth}"></colgroup>${buildThead(indices)}`;
         }
 
         const openIndices = tasks.map((_, ti) => ti).filter((ti) => !tasks[ti].done && (!taskUICollapsed.ganttDatedOnly || taskHasDayInGanttMonth(tasks[ti], y, m)));
@@ -1992,16 +2000,18 @@
             (ti) => tasks[ti].done && taskHasDayInGanttMonth(tasks[ti], y, m)
         );
 
-        let mainTable = tableStart([...openIndices, ...doneThisMonthIndices]);
-        if (openIndices.length === 0) {
+        const calendarIndices = [...openIndices, ...doneThisMonthIndices];
+        const visibleIndices = ganttSelectedDay ? calendarIndices.filter(i => (tasks[i].days || []).includes(ganttSelectedDay)) : openIndices;
+        let mainTable = tableStart(calendarIndices);
+        if (visibleIndices.length === 0) {
             mainTable += `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">${I18n.t('tasks.ganttEmptyRow')}</td></tr></tbody>`;
         } else {
-            mainTable += buildBodyRows(openIndices, 'open');
+            mainTable += buildBodyRows(visibleIndices, 'open');
         }
         mainTable += '</table>';
 
         let doneSection = '';
-        if (doneThisMonthIndices.length > 0) {
+        if (!ganttSelectedDay && doneThisMonthIndices.length > 0) {
             const hidden = !!taskUICollapsed.ganttDoneHidden;
             const chevron = hidden ? '\u25b8' : '\u25be';
             doneSection = `
@@ -2020,6 +2030,14 @@
             </div>`;
         wrap.querySelectorAll('[data-gantt-group]').forEach(button => {
             button.onclick = () => toggleGanttGroup(button.dataset.ganttGroup);
+        });
+        wrap.querySelectorAll('[data-gantt-date-filter]').forEach(button => {
+            button.onclick = () => {
+                const day = button.dataset.ganttDateFilter;
+                ganttSelectedDay = ganttSelectedDay === day ? null : day;
+                renderGantt();
+                wrap.querySelector(`.gantt-main-table-wrap [data-gantt-date-filter="${day}"]`)?.focus({ preventScroll: true });
+            };
         });
         ['.gantt-main-table-wrap', '.gantt-done-inner-wrap'].forEach((selector, i) => {
             const element = wrap.querySelector(selector);

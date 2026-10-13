@@ -52,7 +52,13 @@ function appendTaskPaintingSelects(row, index) {
     row.insertBefore(controls, row.querySelector('.task-actions'));
 }
 
-const paintingGroupCollapsed = new Set();
+const PAINTING_GROUPS_UI_KEY = 'indietoolbox_task_painting_groups';
+const paintingGroupCollapsed = new Set((() => {
+    try {
+        const saved = JSON.parse(localStorage.getItem(PAINTING_GROUPS_UI_KEY) || '[]');
+        return Array.isArray(saved) ? saved.filter(key => typeof key === 'string') : [];
+    } catch (_) { return []; }
+})());
 function renderTaskPaintingGroups(container, indices, prefix) {
     function group(parent, title, key) {
         const details = document.createElement('details');
@@ -61,11 +67,18 @@ function renderTaskPaintingGroups(container, indices, prefix) {
         const summary = document.createElement('summary');
         summary.textContent = title;
         details.append(summary);
-        details.addEventListener('toggle', () => {
+        function remember() {
             if (!details.isConnected) return;
             if (details.open) paintingGroupCollapsed.delete(prefix + key);
             else paintingGroupCollapsed.add(prefix + key);
+            try { localStorage.setItem(PAINTING_GROUPS_UI_KEY, JSON.stringify([...paintingGroupCollapsed])); } catch (_) {}
+        }
+        summary.addEventListener('click', event => {
+            event.preventDefault();
+            details.open = !details.open;
+            remember();
         });
+        details.addEventListener('toggle', remember);
         parent.append(details);
         return details;
     }

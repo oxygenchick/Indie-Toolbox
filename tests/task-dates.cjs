@@ -56,7 +56,13 @@ const { chromium } = require('playwright');
       wrap.scrollLeft = 100;
       wrap.scrollTop = 120;
       const box = wrap.getBoundingClientRect();
-      const cell = document.elementFromPoint(box.left + 300, box.top + 65)?.closest('.gantt-day');
+      const cell = [...wrap.querySelectorAll('.gantt-day')].find(candidate => {
+        const rect = candidate.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        return x > box.left && x < box.right && y > box.top && y < box.bottom
+          && document.elementFromPoint(x, y)?.closest('.gantt-day') === candidate;
+      });
       if (!cell) throw new Error('Expected a visible Gantt day cell');
       const rect = cell.getBoundingClientRect();
       return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, left: wrap.scrollLeft, top: wrap.scrollTop };
