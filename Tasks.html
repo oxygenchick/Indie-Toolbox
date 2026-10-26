@@ -441,17 +441,18 @@
 
         .tab-bar {
             display: flex;
-            border-bottom: 2px solid #000;
             background: #fff;
+            box-shadow: inset 0 -2px 0 #000;
         }
         .tab {
             font-family: 'Chicago', 'VT323', 'Geneva', monospace;
             font-size: 13px;
             font-weight: bold;
             padding: 5px 18px;
-            background: #fff;
+            background: transparent;
             border: none;
             border-right: 1px solid #000;
+            border-bottom: 2px solid transparent;
             cursor: pointer;
             color: #000;
             opacity: 0.55;
@@ -459,11 +460,9 @@
         }
         .tab:hover { opacity: 1; text-decoration: underline; }
         .tab.active {
-            background: #fff;
+            background: transparent;
             color: #000;
             opacity: 1;
-            border-bottom: 2px solid #fff;
-            margin-bottom: -2px;
             text-decoration: none;
         }
         .tab.active:hover { text-decoration: none; }
@@ -569,6 +568,7 @@
             min-height: 0;
             overflow: auto;
             background: #fff;
+            container-type: inline-size;
         }
         .gantt-done-block {
             border-top: 1px solid #000;
@@ -581,6 +581,7 @@
             max-height: 200px;
             border-bottom: 1px solid #000;
             background: #fff;
+            container-type: inline-size;
         }
         .gantt-empty-row {
             text-align: center;
@@ -601,14 +602,18 @@
         }
         .gantt-table {
             --gantt-name-width: clamp(240px, 42vw, 560px);
-            border-collapse: collapse;
-            width: 100%;
-            min-width: calc(var(--gantt-name-width) + var(--gantt-days) * 20px);
+            --gantt-day-width: max(20px, (100cqw - var(--gantt-name-width)) / 31);
+            border-collapse: separate;
+            border-spacing: 0;
+            width: calc(var(--gantt-name-width) + var(--gantt-days) * var(--gantt-day-width));
             table-layout: fixed;
             font-size: 11px;
         }
+        /* Separate borders travel with sticky cells; collapsed ones stay behind and show through. */
         .gantt-table th, .gantt-table td {
-            border: 1px solid #000;
+            border: 0;
+            border-right: 1px solid #000;
+            border-bottom: 1px solid #000;
             padding: 0;
             text-align: center;
             height: 24px;
@@ -663,7 +668,7 @@
             font-size: 12px;
             background: #fff;
         }
-        .gantt-table .gantt-area-row > * { border-top-width: 2px; border-bottom-width: 2px; }
+        .gantt-table .gantt-area-row > * { border-top: 1px solid #000; border-bottom-width: 2px; }
         .gantt-table .gantt-layer-row > * { background-image: var(--dither-dot); background-size: var(--dither-step) var(--dither-step); }
         .gantt-group-toggle { display: flex; align-items: baseline; gap: 6px; width: 100%; padding: 7px 12px; border: 0; background: transparent; color: #000; font: inherit; text-align: left; cursor: pointer; }
         .gantt-group-toggle:hover { text-decoration: underline; }
@@ -673,16 +678,17 @@
         .gantt-table .gantt-layer-row th.gantt-group-name { font-weight: normal; }
         .gantt-table thead th { z-index: 3; }
         .gantt-table thead th.gantt-task-hdr { z-index: 4; }
-        .gantt-table th.gantt-date-hdr { height: 34px; }
+        .gantt-table th.gantt-date-hdr { height: 34px; top: 21px; }
+        .gantt-table th.gantt-month-hdr { height: 21px; padding: 0; font-size: 12px; white-space: nowrap; cursor: grab; }
+        .gantt-month-label { position: absolute; top: 50%; left: 6px; transform: translateY(-50%); }
         .gantt-date-label { display: block; line-height: 13px; }
         .gantt-date-filter { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; box-sizing: border-box; width: 100%; height: 100%; padding: 4px 3px; border: 0; overflow: hidden; background: transparent; color: #000; font: inherit; cursor: pointer; }
         .gantt-date-filter:hover { outline: 1px dotted #000; outline-offset: -2px; }
         .gantt-date-filter:focus-visible { outline: 2px solid #000; outline-offset: -2px; }
         .gantt-date-filter[aria-pressed="true"] { box-shadow: inset 0 0 0 2px #000; }
         .gantt-date-dots {
-            display: grid;
-            grid-template-columns: repeat(3, 3px);
-            grid-auto-rows: 3px;
+            display: flex;
+            flex-wrap: wrap;
             justify-content: center;
             align-content: center;
             gap: 1px;
@@ -718,7 +724,13 @@
             background: #fff;
             box-shadow: inset 0 -2px 0 #000;
         }
-        .gantt-table td.gantt-day.today-col { border-color: #000; }
+        .gantt-table tr.gantt-task-row:hover > td:not(.filled):not(.drag-preview):not(.drag-origin) {
+            background-color: #fff;
+            background-image: radial-gradient(circle, rgba(0, 0, 0, 0.32) 0.42px, transparent 0.48px);
+            background-size: var(--dither-step) var(--dither-step);
+        }
+        .gantt-table td.gantt-day, .gantt-table th.gantt-date-hdr { border-right-style: dotted; }
+        .gantt-table td.month-end, .gantt-table th.month-end { border-right: 2px solid #000; }
         .gantt-table td.gantt-day.filled { cursor: grab; }
         .gantt-table td.gantt-day.drag-origin { background: #fff; background-image: none; outline: 1px dashed #000; outline-offset: -2px; }
         .gantt-table td.gantt-day.drag-preview { background: #000; background-image: none; outline: 2px solid #000; outline-offset: -2px; opacity: .55; }
@@ -1138,6 +1150,10 @@
     let ganttDate = new Date();
     ganttDate.setDate(1);
     let ganttSelectedDay = null;
+    let ganttAnchor = null;
+    let ganttRenderedStart = null;
+    let ganttFollowTimer = null;
+    let ganttAutoScrollFrame = null;
     let journalViewDate = new Date();
     journalViewDate.setDate(1);
     let notesViewDate = new Date();
@@ -1885,12 +1901,92 @@
         renderGantt();
     }
 
+    function ganttColumnWidth(scroller) {
+        const first = scroller?.querySelector('thead th.gantt-date-hdr');
+        const last = scroller?.querySelector('thead th.gantt-date-hdr:last-child');
+        if (!first || !last) return 0;
+        const count = scroller.querySelectorAll('thead th.gantt-date-hdr').length;
+        return (last.getBoundingClientRect().right - first.getBoundingClientRect().left) / count;
+    }
+
+    function ganttMonthOfAnchor(anchor) {
+        const day = ganttDateFromNumber(Math.floor(anchor + 0.5));
+        return { y: Number(day.slice(0, 4)), m: Number(day.slice(5, 7)) - 1 };
+    }
+
+    function syncGanttAnchor() {
+        const scroller = document.querySelector('.gantt-main-table-wrap');
+        const width = ganttColumnWidth(scroller);
+        if (width && ganttRenderedStart !== null) ganttAnchor = ganttRenderedStart + scroller.scrollLeft / width;
+    }
+
+    function ganttFollowScroll(snap = true) {
+        clearTimeout(ganttFollowTimer);
+        syncGanttAnchor();
+        if (ganttAnchor === null) return false;
+        if (snap) ganttAnchor = Math.round(ganttAnchor);
+        const { y, m } = ganttMonthOfAnchor(ganttAnchor);
+        if (y !== ganttDate.getFullYear() || m !== ganttDate.getMonth()) {
+            ganttDate = new Date(y, m, 1);
+            renderGantt();
+            return true;
+        }
+        const scroller = document.querySelector('.gantt-main-table-wrap');
+        const width = ganttColumnWidth(scroller);
+        const target = (ganttAnchor - ganttRenderedStart) * width;
+        if (snap && width && Math.abs(scroller.scrollLeft - target) > 0.5) scroller.scrollTo({ left: target, behavior: 'smooth' });
+        return false;
+    }
+
+    function centerGanttMonthLabels(scroller) {
+        const nameHeader = scroller?.querySelector('th.gantt-task-hdr');
+        if (!nameHeader) return;
+        const visibleLeft = nameHeader.getBoundingClientRect().right;
+        const visibleRight = scroller.getBoundingClientRect().left + scroller.clientLeft + scroller.clientWidth;
+        scroller.querySelectorAll('th.gantt-month-hdr').forEach(header => {
+            const label = header.firstElementChild;
+            const cell = header.getBoundingClientRect();
+            const left = Math.max(cell.left, visibleLeft);
+            const right = Math.min(cell.right, visibleRight);
+            if (right <= left) return;
+            const max = Math.max(6, cell.width - label.offsetWidth - 6);
+            label.style.left = `${Math.min(max, Math.max(6, (left + right - label.offsetWidth) / 2 - cell.left))}px`;
+        });
+    }
+
+    function onGanttScroll(event) {
+        const source = event.target;
+        if (!source.classList?.contains('gantt-main-table-wrap') && !source.classList?.contains('gantt-done-inner-wrap')) return;
+        centerGanttMonthLabels(source);
+        const echo = source.ganttSyncedLeft;
+        source.ganttSyncedLeft = undefined;
+        if (echo !== undefined && Math.abs(echo - source.scrollLeft) < 1) return;
+        document.querySelectorAll('.gantt-main-table-wrap, .gantt-done-inner-wrap').forEach(element => {
+            if (element === source || Math.abs(element.scrollLeft - source.scrollLeft) < 1) return;
+            element.ganttSyncedLeft = source.scrollLeft;
+            element.scrollLeft = source.scrollLeft;
+        });
+        const width = ganttColumnWidth(source);
+        if (!width || ganttRenderedStart === null) return;
+        ganttAnchor = ganttRenderedStart + source.scrollLeft / width;
+        const { y, m } = ganttMonthOfAnchor(ganttAnchor);
+        document.getElementById('gantt-month-label').textContent = `${monthFull(m)} ${y}`;
+        clearTimeout(ganttFollowTimer);
+        if (ganttDrag) ganttFollowScroll(false);
+        else if (!('onscrollend' in window)) ganttFollowTimer = setTimeout(ganttFollowScroll, 250);
+    }
+    document.getElementById('gantt-wrap').addEventListener('scroll', onGanttScroll, true);
+    let ganttResizeFrame = null;
+    window.addEventListener('resize', () => {
+        if (ganttResizeFrame || !document.getElementById('panel-gantt').classList.contains('active')) return;
+        ganttResizeFrame = requestAnimationFrame(() => { ganttResizeFrame = null; renderGantt(); });
+    });
+    document.getElementById('gantt-wrap').addEventListener('scrollend', () => { if (!ganttDrag) ganttFollowScroll(); }, true);
+
     function renderGantt() {
         const wrap = document.getElementById('gantt-wrap');
-        const scrollPositions = ['.gantt-main-table-wrap', '.gantt-done-inner-wrap'].map(selector => {
-            const element = wrap.querySelector(selector);
-            return element ? [element.scrollLeft, element.scrollTop] : [0, 0];
-        });
+        const scrollTops = ['.gantt-main-table-wrap', '.gantt-done-inner-wrap'].map(selector => wrap.querySelector(selector)?.scrollTop || 0);
+        syncGanttAnchor();
         const label = document.getElementById('gantt-month-label');
         const y = ganttDate.getFullYear();
         const m = ganttDate.getMonth();
@@ -1900,13 +1996,25 @@
 
         if (tasks.length === 0) {
             wrap.innerHTML = '<div class="gantt-empty">' + I18n.t('tasks.ganttEmpty') + '</div>';
+            ganttRenderedStart = null;
             return;
         }
 
+        const dateKey = dt => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
         const daysInMonth = new Date(y, m + 1, 0).getDate();
+        const monthStart = ganttDayNumber(dateKey(new Date(y, m, 1)));
+        const rangeStart = ganttDayNumber(dateKey(new Date(y, m - 1, 1)));
+        const rangeEnd = ganttDayNumber(dateKey(new Date(y, m + 3, 0)));
+        const columns = [];
+        for (let n = rangeStart; n <= rangeEnd; n++) {
+            const dateStr = ganttDateFromNumber(n);
+            columns.push({ dateStr, d: Number(dateStr.slice(8, 10)), month: Number(dateStr.slice(5, 7)) - 1, dow: (n + 4) % 7, monthEnd: ganttDateFromNumber(n + 1).endsWith('-01') });
+        }
+        let anchor = ganttAnchor;
+        if (anchor === null || anchor + 0.5 < monthStart || anchor + 0.5 >= monthStart + daysInMonth) anchor = monthStart;
         const today = new Date();
         const todayStr = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
-        const colCount = daysInMonth + 1;
+        const colCount = columns.length + 1;
 
         function buildThead(indices) {
             const dayCounts = new Map();
@@ -1917,19 +2025,25 @@
                     dayCounts.set(day, counts);
                 });
             });
-            let h = '<thead><tr><th class="gantt-task-hdr">' + I18n.t('tasks.ganttTaskCol') + '</th>';
-            for (let d = 1; d <= daysInMonth; d++) {
-                const dt = new Date(y, m, d);
-                const dow = dt.getDay();
-                const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+            let h = '<thead><tr class="gantt-month-row"><th class="gantt-task-hdr" rowspan="2">' + I18n.t('tasks.ganttTaskCol') + '</th>';
+            columns.forEach(({ d, month, dateStr }, i) => {
+                if (i > 0 && d !== 1) return;
+                let span = 1;
+                while (columns[i + span] && columns[i + span].d !== 1) span++;
+                h += `<th class="gantt-month-hdr month-end" colspan="${span}"><span class="gantt-month-label">${monthFull(month)} ${dateStr.slice(0, 4)}</span></th>`;
+            });
+            h += '</tr><tr>';
+            for (const { dateStr, d, month, dow, monthEnd } of columns) {
                 let cls = '';
                 if (dow === 0 || dow === 6) cls += ' weekend-hdr';
                 if (dateStr === todayStr) cls += ' today-hdr';
+                if (monthEnd) cls += ' month-end';
+                const monthShort = I18n.t('tasks.monthShort.' + month);
                 const counts = dayCounts.get(dateStr) || { open: 0, done: 0 };
                 const count = counts.open + counts.done;
                 const doneDots = Math.min(counts.done, 6);
                 const dots = '<span class="gantt-date-dot is-done"></span>'.repeat(doneDots) + '<span class="gantt-date-dot"></span>'.repeat(Math.min(counts.open, 6 - doneDots));
-                const title = `${dayAbbr(dow)} ${d}${count ? ' · ' + I18n.t('tasks.ganttDayCount').replace('{count}', String(count)) + ' · ' + I18n.t('tasks.completed') + ': ' + counts.done : ''}`;
+                const title = `${dayAbbr(dow)} ${d} ${monthShort}${count ? ' · ' + I18n.t('tasks.ganttDayCount').replace('{count}', String(count)) + ' · ' + I18n.t('tasks.completed') + ': ' + counts.done : ''}`;
                 h += `<th class="gantt-date-hdr${cls}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}"><button type="button" class="gantt-date-filter" data-gantt-date-filter="${dateStr}" aria-label="${escapeHtml(title)}" aria-pressed="${ganttSelectedDay === dateStr}"><span class="gantt-date-label">${d}</span><span class="gantt-date-dots" aria-hidden="true">${dots}</span></button></th>`;
             }
             h += '</tr></thead>';
@@ -1943,10 +2057,7 @@
                 const task = tasks[ti];
                 const days = task.days || [];
                 b += `<tr class="gantt-task-row" data-task-index="${ti}"><td class="gantt-task-name${task.done ? ' done-task' : ''}" draggable="true" data-order-task="${ti}" title="${I18n.t('tasks.reorderHint')}"><input type="checkbox" class="gantt-task-check" ${task.done ? 'checked' : ''} onchange="toggleTask(${ti})" aria-label="${escapeHtml(I18n.t('tasks.done') + ': ' + task.text).replace(/"/g, '&quot;')}"><span>${escapeHtml(task.text)}</span></td>`;
-                for (let d = 1; d <= daysInMonth; d++) {
-                    const dt = new Date(y, m, d);
-                    const dow = dt.getDay();
-                    const dateStr = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+                for (const { dateStr, dow, monthEnd } of columns) {
                     const isFilled = days.includes(dateStr);
                     const isWeekend = dow === 0 || dow === 6;
                     const isToday = dateStr === todayStr;
@@ -1954,6 +2065,7 @@
                     if (isFilled) cls += ' filled';
                     if (isWeekend) cls += ' weekend';
                     if (isToday) cls += ' today-col';
+                    if (monthEnd) cls += ' month-end';
                     b += `<td class="${cls}" data-task-index="${ti}" data-date="${dateStr}" title="${I18n.t(isFilled ? 'tasks.dragDatesHint' : 'tasks.markDateHint')}"></td>`;
                 }
                 b += '</tr>';
@@ -1962,7 +2074,7 @@
             function heading(text, kind, areaId, layerId = null) {
                 const key = encodeURIComponent(JSON.stringify([section, kind, areaId, layerId]));
                 const collapsed = (taskUICollapsed.ganttGroups || []).includes(key);
-                b += `<tr class="gantt-${kind}-row"><th class="gantt-group-name" scope="row"><button type="button" class="gantt-group-toggle" data-gantt-group="${key}" aria-expanded="${!collapsed}"><span aria-hidden="true">${collapsed ? '\u25b8' : '\u25be'}</span><span class="gantt-group-label">${escapeHtml(text)}</span></button></th><td colspan="${daysInMonth}" aria-hidden="true"></td></tr>`;
+                b += `<tr class="gantt-${kind}-row"><th class="gantt-group-name" scope="row"><button type="button" class="gantt-group-toggle" data-gantt-group="${key}" aria-expanded="${!collapsed}"><span aria-hidden="true">${collapsed ? '\u25b8' : '\u25be'}</span><span class="gantt-group-label">${escapeHtml(text)}</span></button></th><td colspan="${columns.length}" aria-hidden="true"></td></tr>`;
                 return !collapsed;
             }
             if (ganttSelectedDay) {
@@ -1994,7 +2106,7 @@
         }
 
         function tableStart(indices) {
-            return `<table class="gantt-table${painting.areas.length && !ganttSelectedDay ? ' is-grouped' : ''}" style="--gantt-days:${daysInMonth}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${daysInMonth}"></colgroup>${buildThead(indices)}`;
+            return `<table class="gantt-table${painting.areas.length && !ganttSelectedDay ? ' is-grouped' : ''}" style="--gantt-days:${columns.length}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${columns.length}"></colgroup>${buildThead(indices)}`;
         }
 
         const openIndices = tasks.map((_, ti) => ti).filter((ti) => !tasks[ti].done && (!taskUICollapsed.ganttDatedOnly || taskHasDayInGanttMonth(tasks[ti], y, m)));
@@ -2041,10 +2153,24 @@
                 wrap.querySelector(`.gantt-main-table-wrap [data-gantt-date-filter="${day}"]`)?.focus({ preventScroll: true });
             };
         });
+        ganttRenderedStart = rangeStart;
+        ganttAnchor = anchor;
+        wrap.querySelectorAll('.gantt-main-table-wrap, .gantt-done-inner-wrap').forEach(scroller => {
+            const nameHeader = scroller.querySelector('th.gantt-task-hdr');
+            const available = scroller.clientWidth - (nameHeader?.getBoundingClientRect().width || 0);
+            if (available <= 0) return;
+            const visibleDays = Math.max(1, Math.min(31, Math.floor(available / 20)));
+            scroller.querySelector('.gantt-table').style.setProperty('--gantt-day-width', `${available / visibleDays}px`);
+        });
+        const columnWidth = ganttColumnWidth(wrap.querySelector('.gantt-main-table-wrap'));
         ['.gantt-main-table-wrap', '.gantt-done-inner-wrap'].forEach((selector, i) => {
             const element = wrap.querySelector(selector);
-            if (element) { element.scrollLeft = scrollPositions[i][0]; element.scrollTop = scrollPositions[i][1]; }
+            if (!element) return;
+            if (columnWidth) element.scrollLeft = (anchor - rangeStart) * columnWidth;
+            element.scrollTop = scrollTops[i];
+            centerGanttMonthLabels(element);
         });
+        if (ganttDrag?.filled) previewGanttDrag();
     }
 
     function toggleGanttGroup(key) {
@@ -2108,39 +2234,88 @@
         });
     }
 
+    function updateGanttDragTarget() {
+        const cell = document.elementFromPoint(ganttDrag.pointerX, ganttDrag.pointerY)?.closest('.gantt-day');
+        if (!cell) return;
+        ganttDrag.delta = ganttDayNumber(cell.dataset.date) - ganttDayNumber(ganttDrag.dateStr);
+        previewGanttDrag();
+    }
+
+    function ganttAutoScrollStep() {
+        ganttAutoScrollFrame = null;
+        if (!ganttDrag?.filled || !ganttDrag.moved) return;
+        const scroller = document.querySelector('.gantt-main-table-wrap');
+        const nameHeader = scroller?.querySelector('th.gantt-task-hdr');
+        if (!nameHeader) return;
+        const edge = 48;
+        const left = nameHeader.getBoundingClientRect().right + edge;
+        const right = scroller.getBoundingClientRect().right - edge;
+        const x = ganttDrag.pointerX;
+        const overshoot = x > right ? x - right : x < left ? x - left : 0;
+        if (!overshoot) return;
+        const before = scroller.scrollLeft;
+        scroller.scrollLeft += Math.sign(overshoot) * Math.max(2, Math.min(edge, Math.abs(overshoot)) / 3);
+        if (scroller.scrollLeft === before) return;
+        updateGanttDragTarget();
+        ganttAutoScrollFrame = requestAnimationFrame(ganttAutoScrollStep);
+    }
+
+    function endGanttPointer() {
+        if (ganttAutoScrollFrame) cancelAnimationFrame(ganttAutoScrollFrame);
+        ganttAutoScrollFrame = null;
+        document.body.classList.remove('gantt-dragging');
+    }
+
     document.getElementById('gantt-wrap').addEventListener('pointerdown', event => {
+        if (event.button !== 0) return;
         const cell = event.target.closest('.gantt-day');
-        if (!cell || event.button !== 0) return;
+        const pointer = { startX: event.clientX, startY: event.clientY, lastX: event.clientX, pointerX: event.clientX, pointerY: event.clientY, moved: false, delta: 0 };
+        if (!cell) {
+            const handle = event.target.closest('.gantt-date-hdr, .gantt-month-hdr, .gantt-area-row > td, .gantt-layer-row > td');
+            if (handle) ganttDrag = { ...pointer, handle, taskIndex: null, filled: false, block: [] };
+            return;
+        }
         event.preventDefault();
         if (cell.setPointerCapture) cell.setPointerCapture(event.pointerId);
         const taskIndex = Number(cell.dataset.taskIndex);
         const dateStr = cell.dataset.date;
         const filled = (tasks[taskIndex].days || []).includes(dateStr);
-        ganttDrag = {
-            taskIndex, dateStr, filled, block: filled ? ganttContiguousDays(tasks[taskIndex], dateStr) : [],
-            delta: 0, startX: event.clientX, startY: event.clientY, moved: false
-        };
+        ganttDrag = { ...pointer, taskIndex, dateStr, filled, block: filled ? ganttContiguousDays(tasks[taskIndex], dateStr) : [] };
     });
 
     window.addEventListener('pointermove', event => {
         if (!ganttDrag) return;
-        if (Math.hypot(event.clientX - ganttDrag.startX, event.clientY - ganttDrag.startY) > 4) ganttDrag.moved = true;
-        if (!ganttDrag.moved || !ganttDrag.filled) return;
-        document.body.classList.add('gantt-dragging');
-        const cell = document.elementFromPoint(event.clientX, event.clientY)?.closest('.gantt-day');
-        if (!cell) return;
-        ganttDrag.delta = ganttDayNumber(cell.dataset.date) - ganttDayNumber(ganttDrag.dateStr);
-        previewGanttDrag();
+        if (!ganttDrag.moved && Math.hypot(event.clientX - ganttDrag.startX, event.clientY - ganttDrag.startY) > 4) {
+            ganttDrag.moved = true;
+            document.body.classList.add('gantt-dragging');
+            if (ganttDrag.handle?.isConnected) ganttDrag.handle.setPointerCapture?.(event.pointerId);
+        }
+        if (!ganttDrag.moved) return;
+        if (!ganttDrag.filled) {
+            const scroller = document.querySelector('.gantt-main-table-wrap');
+            if (scroller) scroller.scrollLeft -= event.clientX - ganttDrag.lastX;
+            ganttDrag.lastX = event.clientX;
+            return;
+        }
+        ganttDrag.pointerX = event.clientX;
+        ganttDrag.pointerY = event.clientY;
+        updateGanttDragTarget();
+        if (!ganttAutoScrollFrame) ganttAutoScrollFrame = requestAnimationFrame(ganttAutoScrollStep);
     });
 
     window.addEventListener('pointerup', () => {
         if (!ganttDrag) return;
         const drag = ganttDrag;
         ganttDrag = null;
-        document.body.classList.remove('gantt-dragging');
+        endGanttPointer();
         if (!drag.moved) {
-            toggleGanttDay(drag.taskIndex, drag.dateStr);
+            if (drag.taskIndex !== null) toggleGanttDay(drag.taskIndex, drag.dateStr);
             return;
+        }
+        if (drag.taskIndex === null) {
+            const blockClick = event => { event.stopPropagation(); event.preventDefault(); };
+            window.addEventListener('click', blockClick, { capture: true, once: true });
+            setTimeout(() => window.removeEventListener('click', blockClick, true));
         }
         if (drag.filled && drag.delta) {
             recordUndo();
@@ -2150,14 +2325,15 @@
             save();
             render();
         }
-        renderGantt();
+        if (!ganttFollowScroll() && drag.filled) renderGantt();
     });
 
     window.addEventListener('pointercancel', () => {
         if (!ganttDrag) return;
+        const drag = ganttDrag;
         ganttDrag = null;
-        document.body.classList.remove('gantt-dragging');
-        renderGantt();
+        endGanttPointer();
+        if (!ganttFollowScroll() && drag.filled) renderGantt();
     });
 
     function addGoal() {

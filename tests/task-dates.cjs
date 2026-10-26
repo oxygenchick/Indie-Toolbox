@@ -51,10 +51,14 @@ const { chromium } = require('playwright');
     await page.locator('.task-dates-dialog').getByRole('button', { name: 'Отмена' }).click();
 
     await page.locator('[data-tab="gantt"]').click();
+    await page.evaluate(() => {
+      const wrap = document.querySelector('.gantt-main-table-wrap');
+      wrap.scrollLeft += 100;
+      wrap.scrollTop = 120;
+    });
+    await page.waitForTimeout(500);
     const before = await page.evaluate(() => {
       const wrap = document.querySelector('.gantt-main-table-wrap');
-      wrap.scrollLeft = 100;
-      wrap.scrollTop = 120;
       const box = wrap.getBoundingClientRect();
       const cell = [...wrap.querySelectorAll('.gantt-day')].find(candidate => {
         const rect = candidate.getBoundingClientRect();

@@ -91,7 +91,8 @@
 .calendar-guide-footer { display: flex; justify-content: flex-end; padding: 10px 16px; border-top: 1px solid #000; }
 .calendar-guide-dialog :focus-visible { outline: 2px solid #000; outline-offset: 2px; }
 /* Windows can be narrow on a desktop too. Keep the shell and task controls usable. */
-.tab-bar { overflow-x: auto; flex-shrink: 0; }
+.tab-bar { overflow-x: auto; overflow-y: hidden; flex-shrink: 0; scrollbar-width: none; }
+.tab-bar::-webkit-scrollbar { display: none; }
 .tab-bar .tab { flex-shrink: 0; white-space: nowrap; }
 .add-row .add-input { min-width: 0; }
 .file-history-buttons { display: flex; gap: 8px; flex-shrink: 0; }
