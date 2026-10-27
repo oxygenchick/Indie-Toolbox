@@ -27,7 +27,23 @@ const { chromium } = require('playwright');
   assert.equal(await page.locator('.gantt-main-table-wrap .gantt-date-hdr:has([data-gantt-date-filter="2026-10-05"])').locator('.gantt-date-dot.is-done').count(),1);
   assert.equal(await page.locator('.gantt-done-inner-wrap .gantt-date-hdr:has([data-gantt-date-filter="2026-10-05"])').locator('.gantt-date-dot').count(),1);
   const datedToggle=page.locator('#gantt-dated-toggle');
-  assert.equal(await datedToggle.textContent(),'Только с датами этого месяца');
+  assert.equal(await datedToggle.getAttribute('title'),'Только с датами этого месяца');
+  const anyDatedToggle=page.locator('#gantt-dated-any-toggle');
+  assert.equal(await anyDatedToggle.getAttribute('aria-label'),'Только задачи с датами, любой месяц');
+  await anyDatedToggle.click();
+  assert.equal(await anyDatedToggle.getAttribute('aria-pressed'),'true');
+  assert.deepEqual((await page.locator('.gantt-main-table-wrap .gantt-task-name > span').allTextContents()).sort(),[
+   'Дата в сентябре',
+   'Настроить детали звука',
+   'Очень длинное название задачи: проверить взаимодействие игрока с предметами и переходами между сценами, включая свет, звук и сохранение прогресса'
+  ]);
+  await page.evaluate(()=>ganttNext());
+  assert.equal(await page.locator('.gantt-main-table-wrap .gantt-task-name').count(),3);
+  await page.evaluate(()=>ganttPrev());
+  await datedToggle.click();
+  assert.equal(await anyDatedToggle.getAttribute('aria-pressed'),'false');
+  assert.deepEqual(await page.evaluate(()=>[readTaskUIState().ganttDatedOnly,readTaskUIState().ganttDatedAny]),[true,false]);
+  await datedToggle.click();
   assert.equal(await datedToggle.getAttribute('aria-pressed'),'false');
   await datedToggle.click();
   assert.equal(await datedToggle.getAttribute('aria-pressed'),'true');

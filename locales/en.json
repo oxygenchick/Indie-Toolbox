@@ -258,6 +258,7 @@
   "tasks.taskDateEndBeforeStart": "The end date is before the start date.",
   "tasks.taskDateRangeTooLong": "The range is too long.",
   "tasks.ganttDatedOnly": "Only tasks dated this month",
+  "tasks.ganttDatedAny": "Only tasks with dates, any month",
   "tasks.ganttEmpty": "Add tasks first to use the Gantt chart.",
   "tasks.ganttNoActiveMonth": "No active tasks for this month.",
   "tasks.ganttCompletedThisMonth": "Completed this month",

@@ -28,6 +28,7 @@ const ABOUT_DESC_RU = `Indie Toolbox — набор повседневных и�
 const baseEn = {
     "tasks.reorderHint": "Drag a task to move it",
     "tasks.ganttDatedOnly": "Only tasks dated this month",
+    "tasks.ganttDatedAny": "Only tasks with dates, any month",
     "tasks.addTaskDate": "Date +",
     "tasks.editTaskDates": "Task dates",
     "tasks.noTaskDates": "No dates selected",
@@ -271,6 +272,7 @@ const baseEn = {
 const baseRu = {
     "tasks.reorderHint": "Перетащите задачу, чтобы изменить порядок",
     "tasks.ganttDatedOnly": "Только с датами этого месяца",
+    "tasks.ganttDatedAny": "Только задачи с датами, любой месяц",
     "tasks.addTaskDate": "Дата +",
     "tasks.editTaskDates": "Даты задачи",
     "tasks.noTaskDates": "Даты не выбраны",
