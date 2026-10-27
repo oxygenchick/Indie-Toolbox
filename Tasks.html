@@ -1908,10 +1908,12 @@
 
     function ganttPrev() {
         ganttDate.setMonth(ganttDate.getMonth() - 1);
+        ganttSelectedDay = null;
         renderGantt();
     }
     function ganttNext() {
         ganttDate.setMonth(ganttDate.getMonth() + 1);
+        ganttSelectedDay = null;
         renderGantt();
     }
 
@@ -2004,7 +2006,6 @@
         const label = document.getElementById('gantt-month-label');
         const y = ganttDate.getFullYear();
         const m = ganttDate.getMonth();
-        if (ganttSelectedDay && !ganttSelectedDay.startsWith(`${y}-${String(m + 1).padStart(2, '0')}-`)) ganttSelectedDay = null;
         label.textContent = `${monthFull(m)} ${y}`;
         document.getElementById('gantt-dated-toggle').setAttribute('aria-pressed', String(!!taskUICollapsed.ganttDatedOnly));
         document.getElementById('gantt-dated-any-toggle').setAttribute('aria-pressed', String(!!taskUICollapsed.ganttDatedAny));
@@ -2020,6 +2021,10 @@
         const monthStart = ganttDayNumber(dateKey(new Date(y, m, 1)));
         const rangeStart = ganttDayNumber(dateKey(new Date(y, m - 1, 1)));
         const rangeEnd = ganttDayNumber(dateKey(new Date(y, m + 3, 0)));
+        if (ganttSelectedDay) {
+            const selectedNum = ganttDayNumber(ganttSelectedDay);
+            if (selectedNum < rangeStart || selectedNum > rangeEnd) ganttSelectedDay = null;
+        }
         const columns = [];
         for (let n = rangeStart; n <= rangeEnd; n++) {
             const dateStr = ganttDateFromNumber(n);
@@ -2134,9 +2139,10 @@
             (ti) => tasks[ti].done && taskHasDayInGanttMonth(tasks[ti], y, m)
         );
 
-        const calendarIndices = [...openIndices, ...doneThisMonthIndices];
-        const visibleIndices = ganttSelectedDay ? calendarIndices.filter(i => (tasks[i].days || []).includes(ganttSelectedDay)) : openIndices;
-        let mainTable = tableStart(calendarIndices);
+        const visibleIndices = ganttSelectedDay
+            ? tasks.map((_, ti) => ti).filter(i => (tasks[i].days || []).includes(ganttSelectedDay)).sort((a, b) => tasks[a].done - tasks[b].done)
+            : openIndices;
+        let mainTable = tableStart(tasks.map((_, ti) => ti));
         if (visibleIndices.length === 0) {
             mainTable += `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">${I18n.t('tasks.ganttEmptyRow')}</td></tr></tbody>`;
         } else {
