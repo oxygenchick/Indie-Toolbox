@@ -463,7 +463,8 @@
 
     <script src="i18n.js"></script>
     <script>
-        const STORE_KEY = 'itb_brief_flow_draft_v1';
+        const WINDOW_NUM = Number(new URLSearchParams(location.search).get('window')) || 1;
+        const STORE_KEY = 'itb_brief_flow_draft_v1' + (WINDOW_NUM > 1 ? '_w' + WINDOW_NUM : '');
         const model = { meta: { title: '' }, sections: [] };
         const docHistory = [];
         let activeSectionId = null;
@@ -1120,7 +1121,13 @@
             await addImagesToSpecificGroup(group, files);
         }
 
+        function notifyDocTitle() {
+            if (window.parent === window) return;
+            try { window.parent.postMessage({ type: 'indietoolbox-doc-title', title: briefTitle.value.trim() }, location.origin); } catch (e) {}
+        }
+
         function render() {
+            notifyDocTitle();
             ensureDefaultSection();
             if (model.sections.length > 1) {
                 model.sections = model.sections.filter((s) => !(s.type === 'imageGroup' && (!s.items || s.items.length === 0)));
@@ -2015,7 +2022,7 @@
         document.getElementById('btn-save').addEventListener('click', () => saveProject().catch(() => {}));
         document.getElementById('btn-open').addEventListener('click', () => openProject().catch(() => alert(I18n.t('brief.badFile'))));
         document.getElementById('btn-pdf').addEventListener('click', exportPdf);
-        briefTitle.addEventListener('input', () => { model.meta.title = briefTitle.value; markDocEdited(); });
+        briefTitle.addEventListener('input', () => { model.meta.title = briefTitle.value; markDocEdited(); notifyDocTitle(); });
         document.getElementById('brief-unsaved-save').addEventListener('click', () => saveProject().catch(() => {}));
         window.addEventListener('beforeunload', (e) => {
             if (!briefDirty || projectFileHandle || !hasMeaningfulBriefContent()) return;

@@ -94,6 +94,9 @@
             font-weight: bold;
             cursor: pointer;
             white-space: nowrap;
+            max-width: 220px;
+            overflow: hidden;
+            text-overflow: ellipsis;
             border: 1px solid transparent;
         }
         .menu-bar .taskbar-item:hover {
@@ -267,8 +270,11 @@
             bottom: 0;
             transform: translateX(-50%);
             z-index: 1;
-            display: flex;
-            align-items: center;
+            display: block;
+            line-height: 22px;
+            max-width: calc(100% - 120px);
+            overflow: hidden;
+            text-overflow: ellipsis;
             background: #fff;
             padding: 0 10px;
             font-size: 13px;
@@ -521,7 +527,7 @@
         const appConfig = {
             audio: { titleKey: 'app.titleAudio', src: 'AudioEditor.html', w: 1050, h: 650 },
             image: { titleKey: 'app.titleImage', src: 'ImageConverter.html', w: 950, h: 700 },
-            brief: { titleKey: 'app.titleBrief', src: 'BriefEditor.html', w: 1100, h: 760 },
+            brief: { titleKey: 'app.titleBrief', src: 'BriefEditor.html', w: 1100, h: 760, multiWindow: true },
             tasks: { titleKey: 'app.titleTasks', src: 'Tasks.html', w: 1120, h: 630 },
             video: { titleKey: 'app.titleVideo', src: 'VideoEditor.html', w: 900, h: 650 },
             story: { titleKey: 'app.titleStory', src: 'StoryBoard.html', w: 1100, h: 760 },
@@ -532,6 +538,26 @@
             const cfg = appConfig[appId];
             return cfg ? I18n.t(cfg.titleKey) : '';
         }
+
+        function windowTitle(windowId) {
+            const win = windows[windowId];
+            if (win?.dataset.docTitle) return win.dataset.docTitle;
+            const instance = Number(win?.dataset.instance) || 1;
+            return appTitle(win?.dataset.appId || windowId) + (instance > 1 ? ' ' + instance : '');
+        }
+
+        window.addEventListener('message', (e) => {
+            const d = e.data;
+            if (e.origin !== location.origin || !d || d.type !== 'indietoolbox-doc-title') return;
+            for (const id in windows) {
+                const win = windows[id];
+                if (win.querySelector('iframe')?.contentWindow !== e.source) continue;
+                win.dataset.docTitle = String(d.title || '').slice(0, 80);
+                win.querySelector('.app-title-text').textContent = windowTitle(id);
+                renderTaskbar();
+                return;
+            }
+        });
 
         function broadcastLangToIframes(lang) {
             document.querySelectorAll('.app-body iframe').forEach((f) => {
@@ -554,7 +580,7 @@
             document.title = I18n.t('shell.pageTitle');
             for (const id in windows) {
                 const el = windows[id].querySelector('.app-title-text');
-                if (el) el.textContent = appTitle(id);
+                if (el) el.textContent = windowTitle(id);
             }
             renderTaskbar();
             syncLangButtons();
@@ -612,15 +638,20 @@
 
         function openApp(appId) {
             if (appId === 'tasks') renewJourneyCalendarOnOpen();
-            if (windows[appId]) {
-                bringToFront(appId);
+            const cfg = { ...appConfig[appId] };
+            let instance = 1;
+            const idFor = n => n === 1 ? appId : `${appId}-${n}`;
+            if (cfg.multiWindow) while (windows[idFor(instance)]) instance++;
+            const windowId = idFor(instance);
+            if (windows[windowId]) {
+                bringToFront(windowId);
                 return;
             }
 
-            const cfg = { ...appConfig[appId] };
             const win = document.createElement('div');
             win.className = 'app-window';
             win.dataset.appId = appId;
+            win.dataset.instance = instance;
 
             const desktopRect = desktop.getBoundingClientRect();
             if (appId === 'tasks') {
@@ -646,51 +677,53 @@
                 win.style.minHeight = cfg.h + 'px';
             }
 
-            const maximizeBtn = cfg.noMaximize ? '' : `<div class="app-maximize-box" data-app="${appId}"></div>`;
-            const resizeHandle = cfg.noResize ? '' : `<div class="app-resize-handle" data-app="${appId}"></div>`;
+            const maximizeBtn = cfg.noMaximize ? '' : `<div class="app-maximize-box" data-app="${windowId}"></div>`;
+            const resizeHandle = cfg.noResize ? '' : `<div class="app-resize-handle" data-app="${windowId}"></div>`;
+            const src = instance > 1 ? `${cfg.src}?window=${instance}` : cfg.src;
 
             win.innerHTML = `
                 <div class="app-title-bar">
                     <div class="app-title-bar-controls">
-                        <div class="app-close-box" data-app="${appId}"></div>
+                        <div class="app-close-box" data-app="${windowId}"></div>
                         ${maximizeBtn}
                     </div>
                     <div class="app-title-bar-lines"></div>
-                    <div class="app-title-text">${appTitle(appId)}</div>
+                    <div class="app-title-text"></div>
                 </div>
                 <div class="app-body">
-                    <iframe src="${cfg.src}"></iframe>
+                    <iframe src="${src}"></iframe>
                 </div>
                 ${resizeHandle}
             `;
 
             desktop.appendChild(win);
-            windows[appId] = win;
+            windows[windowId] = win;
+            win.querySelector('.app-title-text').textContent = windowTitle(windowId);
             clampWindowPosition(win);
 
-            setupWindowDrag(win, appId);
-            if (!cfg.noResize) setupWindowResize(win, appId);
-            bringToFront(appId);
+            setupWindowDrag(win, windowId);
+            if (!cfg.noResize) setupWindowResize(win, windowId);
+            bringToFront(windowId);
 
             win.querySelector('.app-close-box').addEventListener('click', (e) => {
                 e.stopPropagation();
-                closeApp(appId);
+                closeApp(windowId);
             });
 
             const maxBox = win.querySelector('.app-maximize-box');
             if (maxBox) {
                 maxBox.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    toggleMaximize(appId);
+                    toggleMaximize(windowId);
                 });
             }
 
             win.querySelector('.app-title-bar').addEventListener('dblclick', (e) => {
                 if (e.target.classList.contains('app-close-box') || e.target.classList.contains('app-maximize-box')) return;
-                if (!cfg.noMaximize) toggleMaximize(appId);
+                if (!cfg.noMaximize) toggleMaximize(windowId);
             });
 
-            win.addEventListener('mousedown', () => bringToFront(appId));
+            win.addEventListener('mousedown', () => bringToFront(windowId));
 
             renderTaskbar();
         }
@@ -759,7 +792,7 @@
                 const item = document.createElement('span');
                 item.className = 'taskbar-item';
                 item.dataset.app = id;
-                item.textContent = appTitle(id);
+                item.textContent = item.title = windowTitle(id);
                 item.addEventListener('click', () => bringToFront(id));
                 container.appendChild(item);
             }
