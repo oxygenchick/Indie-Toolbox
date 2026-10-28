@@ -405,6 +405,7 @@
                 <button class="mac-btn" id="btn-open" data-i18n="brief.openProject">Open project</button>
                 <button class="mac-btn" id="btn-save" data-i18n="brief.saveProject">Save project</button>
                 <button class="mac-btn" id="btn-pdf" data-i18n="brief.exportPdf">Export PDF</button>
+                <button class="mac-btn" id="btn-md" data-i18n="brief.exportMd" data-i18n-title="brief.exportMdHint">Export MD</button>
             </div>
             <div class="meta">
                 <label data-i18n="brief.title">Title:</label>
@@ -499,6 +500,10 @@
         const briefTitle = document.getElementById('brief-title');
 
         function suggestedBriefSaveFileName() {
+            return briefFileBase() + '.itb-brief.json';
+        }
+
+        function briefFileBase() {
             let base = (briefTitle.value || '').trim()
                 .replace(/[\\/:*?"<>|#\u0000-\u001f]/g, '')
                 .replace(/^\.+/, '')
@@ -508,7 +513,7 @@
                 .slice(0, 80);
             if (!base) base = 'brief';
             if (/^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(base)) base = 'doc-' + base;
-            return base + '.itb-brief.json';
+            return base;
         }
 
         async function writeProjectToBriefFile(handle) {
@@ -1604,6 +1609,124 @@
             window.print();
         }
 
+        const CRC32_TABLE = (() => {
+            const t = new Uint32Array(256);
+            for (let n = 0; n < 256; n++) {
+                let c = n;
+                for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1;
+                t[n] = c >>> 0;
+            }
+            return t;
+        })();
+
+        function crc32(bytes) {
+            let c = 0xFFFFFFFF;
+            for (let i = 0; i < bytes.length; i++) c = CRC32_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+            return (c ^ 0xFFFFFFFF) >>> 0;
+        }
+
+        /** Uncompressed ZIP (method 0), UTF-8 names. files: [{ name, data: Uint8Array }] */
+        function buildZip(files) {
+            const enc = new TextEncoder();
+            const now = new Date();
+            const dosTime = (now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1);
+            const dosDate = ((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate();
+            const parts = [], central = [];
+            let offset = 0;
+            for (const f of files) {
+                const name = enc.encode(f.name);
+                const crc = crc32(f.data);
+                const local = new DataView(new ArrayBuffer(30));
+                local.setUint32(0, 0x04034b50, true);
+                local.setUint16(4, 20, true);
+                local.setUint16(6, 0x0800, true);
+                local.setUint16(10, dosTime, true);
+                local.setUint16(12, dosDate, true);
+                local.setUint32(14, crc, true);
+                local.setUint32(18, f.data.length, true);
+                local.setUint32(22, f.data.length, true);
+                local.setUint16(26, name.length, true);
+                parts.push(local.buffer, name, f.data);
+                const cd = new DataView(new ArrayBuffer(46));
+                cd.setUint32(0, 0x02014b50, true);
+                cd.setUint16(4, 20, true);
+                cd.setUint16(6, 20, true);
+                cd.setUint16(8, 0x0800, true);
+                cd.setUint16(12, dosTime, true);
+                cd.setUint16(14, dosDate, true);
+                cd.setUint32(16, crc, true);
+                cd.setUint32(20, f.data.length, true);
+                cd.setUint32(24, f.data.length, true);
+                cd.setUint16(28, name.length, true);
+                cd.setUint32(42, offset, true);
+                central.push(cd.buffer, name);
+                offset += 30 + name.length + f.data.length;
+            }
+            const cdSize = central.reduce((s, p) => s + p.byteLength, 0);
+            const end = new DataView(new ArrayBuffer(22));
+            end.setUint32(0, 0x06054b50, true);
+            end.setUint16(8, files.length, true);
+            end.setUint16(10, files.length, true);
+            end.setUint32(12, cdSize, true);
+            end.setUint32(16, offset, true);
+            return new Blob([...parts, ...central, end.buffer], { type: 'application/zip' });
+        }
+
+        function downloadBlob(blob, fileName) {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = fileName;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+        }
+
+        const IMAGE_EXT = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp', 'image/gif': 'gif', 'image/svg+xml': 'svg', 'image/bmp': 'bmp', 'image/avif': 'avif' };
+
+        async function buildMarkdownExport() {
+            const blocks = [];
+            const images = [];
+            const title = (briefTitle.value || '').trim();
+            if (title) blocks.push('# ' + title.replace(/\s*\n\s*/g, ' '));
+            for (const sec of model.sections) {
+                if (sec.type === 'text') {
+                    const text = (sec.text || '').replace(/\r\n?/g, '\n').replace(/\u00a0/g, ' ').trim();
+                    if (!text) continue;
+                    if (sec.isHeading) { blocks.push('## ' + text.replace(/\s*\n\s*/g, ' ')); continue; }
+                    text.split(/\n\s*\n/).forEach((p) => blocks.push(p.split('\n').map(l => l.trimEnd()).join('  \n')));
+                } else if (sec.type === 'imageGroup') {
+                    const items = [...(sec.items || [])].sort((a, b) => (a.y - b.y) || (a.x - b.x));
+                    const lines = [];
+                    for (const it of items) {
+                        const needsComposite = it.overlaySrc || (it.textAnnotations && it.textAnnotations.length);
+                        const src = needsComposite ? (it.viewSrc || await imageCompositeDataURL(it)) : (it.baseSrc || it.viewSrc);
+                        if (!src) continue;
+                        const blob = await (await fetch(src)).blob();
+                        const n = images.length + 1;
+                        const name = `images/image-${String(n).padStart(2, '0')}.${IMAGE_EXT[blob.type] || 'png'}`;
+                        images.push({ name, data: new Uint8Array(await blob.arrayBuffer()) });
+                        lines.push(`![${I18n.t('brief.imageAlt').replace('{n}', n)}](${name})`);
+                    }
+                    if (lines.length) blocks.push(lines.join('\n\n'));
+                }
+            }
+            return { markdown: blocks.join('\n\n') + '\n', images };
+        }
+
+        async function exportMarkdown() {
+            try {
+                const { markdown, images } = await buildMarkdownExport();
+                const base = briefFileBase();
+                const mdBytes = new TextEncoder().encode(markdown);
+                if (!images.length) {
+                    downloadBlob(new Blob([mdBytes], { type: 'text/markdown;charset=utf-8' }), base + '.md');
+                    return;
+                }
+                downloadBlob(buildZip([{ name: base + '.md', data: mdBytes }, ...images]), base + '.zip');
+            } catch (e) {
+                alert(I18n.t('brief.exportMdFailed'));
+            }
+        }
+
         // Annotation modal (same tool style as ImageConverter)
         const annot = { section: null, item: null, baseImage: null, overlayCanvas: document.createElement('canvas'), overlayCtx: null, textAnnotations: [], tool: 'pencil', drawing:false, lastPoint:null, scale:1, defaultTextBaseSize: ANNOT_BASE_FONT, textEditId:null, textDragStart:null, textPendingRect:null, history: [], selectedTextId:null, moveTextState:null, resizeTextState:null };
         annot.overlayCtx = annot.overlayCanvas.getContext('2d');
@@ -1696,6 +1819,7 @@
             annotBody.style.overflow = (needW > bw + 0.5 || needH > bh + 0.5) ? 'auto' : 'hidden';
         }
         function drawAnnot() {
+            if (!annot.baseImage) return;
             const w = Math.round(annot.baseImage.width * annot.scale), h = Math.round(annot.baseImage.height * annot.scale);
             annotCanvas.width = w; annotCanvas.height = h;
             annotCtx.clearRect(0, 0, w, h);
@@ -2022,6 +2146,7 @@
         document.getElementById('btn-save').addEventListener('click', () => saveProject().catch(() => {}));
         document.getElementById('btn-open').addEventListener('click', () => openProject().catch(() => alert(I18n.t('brief.badFile'))));
         document.getElementById('btn-pdf').addEventListener('click', exportPdf);
+        document.getElementById('btn-md').addEventListener('click', exportMarkdown);
         briefTitle.addEventListener('input', () => { model.meta.title = briefTitle.value; markDocEdited(); notifyDocTitle(); });
         document.getElementById('brief-unsaved-save').addEventListener('click', () => saveProject().catch(() => {}));
         window.addEventListener('beforeunload', (e) => {
