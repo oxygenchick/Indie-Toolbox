@@ -63,18 +63,20 @@ function renderTaskPaintingGroups(container, indices, prefix) {
     function group(parent, title, key) {
         const details = document.createElement('details');
         details.className = 'task-painting-group';
-        details.open = !paintingGroupCollapsed.has(prefix + key);
+        const lockedOpen = typeof taskSearchNeedle === 'function' && !!taskSearchNeedle();
+        details.open = lockedOpen || !paintingGroupCollapsed.has(prefix + key);
         const summary = document.createElement('summary');
         summary.textContent = title;
         details.append(summary);
         function remember() {
-            if (!details.isConnected) return;
+            if (!details.isConnected || (typeof taskSearchNeedle === 'function' && taskSearchNeedle())) return;
             if (details.open) paintingGroupCollapsed.delete(prefix + key);
             else paintingGroupCollapsed.add(prefix + key);
             try { localStorage.setItem(PAINTING_GROUPS_UI_KEY, JSON.stringify([...paintingGroupCollapsed])); } catch (_) {}
         }
         summary.addEventListener('click', event => {
             event.preventDefault();
+            if (typeof taskSearchNeedle === 'function' && taskSearchNeedle()) return;
             details.open = !details.open;
             remember();
         });

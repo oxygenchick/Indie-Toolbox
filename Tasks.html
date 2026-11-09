@@ -210,6 +210,23 @@
         .add-input:focus { border-color: #000; }
         .add-input::placeholder { color: rgba(0,0,0,0.38); }
 
+        .search-row {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 16px 12px;
+            border-bottom: 1px solid #000;
+            background: #fff;
+            flex-shrink: 0;
+        }
+        .search-row .add-input { flex: 1; min-width: 0; }
+        #task-search-clear, #gantt-search-clear { min-width: 28px; padding: 5px 8px; }
+        .search-row--gantt { padding: 12px 16px; }
+        .gantt-search-count { font-size: 11px; opacity: 0.5; white-space: nowrap; }
+        .task-search-hit { background: #000; color: #fff; font: inherit; padding: 0 1px; }
+        .task-done-toggle[data-search-lock="true"] { cursor: default; }
+        .task-done-toggle[data-search-lock="true"]:hover { text-decoration: none; }
+
         .task-list { list-style: none; min-height: 60px; flex: 1; overflow-y: auto; }
 
         .task-item {
@@ -1010,6 +1027,10 @@
                     <input class="add-input" id="add-input" type="text" data-i18n-placeholder="tasks.newTaskPlaceholder" placeholder="New task..." onkeydown="if(event.key==='Enter')addTask()">
                     <button class="mac-btn" onclick="addTask()">&#10010; <span data-i18n="tasks.add">Add</span></button>
                 </div>
+                <div class="search-row">
+                    <input class="add-input" id="task-search" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="tasks.searchPlaceholder" data-i18n-aria-label="tasks.searchPlaceholder" placeholder="Search tasks..." aria-label="Search tasks..." oninput="onTaskSearchInput()" onkeydown="onTaskSearchKeydown(event)">
+                    <button type="button" class="mac-btn" id="task-search-clear" onclick="clearTaskSearch()" hidden data-i18n-aria-label="tasks.clearSearch" data-i18n-title="tasks.clearSearch" aria-label="Clear search" title="Clear search">&#215;</button>
+                </div>
 
                 <div class="tasks-panel-scroll">
                     <div id="tasks-active-area"></div>
@@ -1035,6 +1056,11 @@
             </div>
 
             <div id="panel-gantt" class="tab-panel">
+                <div class="search-row search-row--gantt">
+                    <input class="add-input" id="gantt-search" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" data-i18n-placeholder="tasks.searchPlaceholder" data-i18n-aria-label="tasks.searchPlaceholder" placeholder="Search tasks..." aria-label="Search tasks..." oninput="onGanttSearchInput()" onkeydown="onGanttSearchKeydown(event)">
+                    <span class="gantt-search-count" id="gantt-search-count"></span>
+                    <button type="button" class="mac-btn" id="gantt-search-clear" onclick="clearGanttSearch()" hidden data-i18n-aria-label="tasks.clearSearch" data-i18n-title="tasks.clearSearch" aria-label="Clear search" title="Clear search">&#215;</button>
+                </div>
                 <div class="gantt-wrap" id="gantt-wrap"></div>
                 <div class="period-nav period-nav--bottom gantt-period-nav" role="navigation" data-i18n-aria-label="tasks.ariaNavGanttMonth" aria-label="Gantt month">
                     <div class="period-nav-cluster">
@@ -1464,12 +1490,14 @@
     setupTaskReordering();
 
     function toggleDoneSection() {
+        if (taskSearchNeedle()) return;
         taskUICollapsed.doneHidden = !taskUICollapsed.doneHidden;
         writeTaskUIState();
         render();
     }
 
     function toggleGanttDoneSection() {
+        if (ganttSearchNeedle()) return;
         taskUICollapsed.ganttDoneHidden = !taskUICollapsed.ganttDoneHidden;
         writeTaskUIState();
         renderGantt();
@@ -1641,7 +1669,7 @@
             <input type="checkbox" ${task.done ? 'checked' : ''} onchange="toggleTask(${i})" ${isEditing ? 'disabled' : ''}>
             ${isEditing
                 ? '<input class="task-rename-input" type="text" autocomplete="off">'
-                : `<span class="task-text" ondblclick="startRenameTask(${i})" title="${I18n.t('tasks.doubleClickRename')}">${escapeHtml(task.text)}</span>`}
+                : `<span class="task-text" ondblclick="startRenameTask(${i})" title="${I18n.t('tasks.doubleClickRename')}">${highlightTaskText(task.text)}</span>`}
             <div class="task-actions">
                 ${pomoBtn}
                 ${isEditing
@@ -1673,12 +1701,13 @@
             if (mk !== lastKey) {
                 lastKey = mk;
                 const stateKey = sectionPrefix + mk;
-                const collapsed = !!taskUICollapsed.months[stateKey];
+                const collapsed = !taskSearchNeedle() && !!taskUICollapsed.months[stateKey];
                 const header = document.createElement('div');
                 header.className = 'task-month-header' + (sectionPrefix === 'd:' ? ' task-month-header--done' : '');
                 const chev = collapsed ? '\u25b8' : '\u25be';
                 header.innerHTML = `<span class="task-month-chevron">${chev}</span><span>${escapeHtml(formatMonthKeyLabel(mk))}</span>`;
                 header.onclick = () => {
+                    if (taskSearchNeedle()) return;
                     taskUICollapsed.months[stateKey] = !taskUICollapsed.months[stateKey];
                     writeTaskUIState();
                     render();
@@ -1693,39 +1722,185 @@
         });
     }
 
+    let taskSearchQuery = '';
+
+    function foldSearch(value) {
+        return String(value || '').toLowerCase().replace(/ё/g, 'е');
+    }
+
+    function taskSearchNeedle() {
+        return foldSearch(taskSearchQuery).trim();
+    }
+
+    function taskMatchesSearch(task) {
+        const needle = taskSearchNeedle();
+        return !needle || foldSearch(task.text).includes(needle);
+    }
+
+    function highlightSearchText(text, needle) {
+        const source = String(text || '');
+        if (!needle) return escapeHtml(source);
+        const folded = foldSearch(source);
+        let html = '';
+        let from = 0;
+        while (from < source.length) {
+            const at = folded.indexOf(needle, from);
+            if (at < 0) {
+                html += escapeHtml(source.slice(from));
+                break;
+            }
+            html += escapeHtml(source.slice(from, at));
+            html += '<mark class="task-search-hit">' + escapeHtml(source.slice(at, at + needle.length)) + '</mark>';
+            from = at + needle.length;
+        }
+        return html;
+    }
+
+    function highlightTaskText(text) {
+        return highlightSearchText(text, taskSearchNeedle());
+    }
+
+    let ganttSearchQuery = '';
+    let ganttSearchScrollReset = false;
+
+    function ganttSearchNeedle() {
+        return foldSearch(ganttSearchQuery).trim();
+    }
+
+    function ganttTaskMatchesSearch(task) {
+        const needle = ganttSearchNeedle();
+        return !needle || foldSearch(task.text).includes(needle);
+    }
+
+    function syncGanttSearchClear() {
+        const clearBtn = document.getElementById('gantt-search-clear');
+        if (clearBtn) clearBtn.hidden = !ganttSearchQuery;
+    }
+
+    function setGanttSearchCount(count) {
+        const countEl = document.getElementById('gantt-search-count');
+        if (!countEl) return;
+        countEl.textContent = ganttSearchNeedle() ? I18n.t('tasks.searchCount').replace('{count}', String(count)) : '';
+    }
+
+    function onGanttSearchInput() {
+        const input = document.getElementById('gantt-search');
+        const next = input ? input.value : '';
+        const prev = ganttSearchNeedle();
+        ganttSearchQuery = next;
+        syncGanttSearchClear();
+        if (ganttSearchNeedle() === prev) return;
+        ganttSearchScrollReset = true;
+        renderGantt();
+    }
+
+    function clearGanttSearch() {
+        const input = document.getElementById('gantt-search');
+        ganttSearchQuery = '';
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        syncGanttSearchClear();
+        ganttSearchScrollReset = true;
+        renderGantt();
+    }
+
+    function onGanttSearchKeydown(event) {
+        if (event.key === 'Escape' && ganttSearchQuery) {
+            event.preventDefault();
+            clearGanttSearch();
+        }
+    }
+
+    function syncTaskSearchClear() {
+        const clearBtn = document.getElementById('task-search-clear');
+        if (clearBtn) clearBtn.hidden = !taskSearchQuery;
+    }
+
+    function onTaskSearchInput() {
+        const input = document.getElementById('task-search');
+        const next = input ? input.value : '';
+        const prev = taskSearchNeedle();
+        taskSearchQuery = next;
+        syncTaskSearchClear();
+        if (taskSearchNeedle() === prev) return;
+        renderTaskLists();
+        const list = document.querySelector('.tasks-panel-scroll');
+        if (list) list.scrollTop = 0;
+    }
+
+    function clearTaskSearch() {
+        const input = document.getElementById('task-search');
+        taskSearchQuery = '';
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        syncTaskSearchClear();
+        renderTaskLists();
+        const list = document.querySelector('.tasks-panel-scroll');
+        if (list) list.scrollTop = 0;
+    }
+
+    function onTaskSearchKeydown(event) {
+        if (event.key === 'Escape' && taskSearchQuery) {
+            event.preventDefault();
+            clearTaskSearch();
+        }
+    }
+
     function render() {
         renderPainting();
+        renderTaskLists();
+    }
+
+    function renderTaskLists() {
         const activeRoot = document.getElementById('tasks-active-area');
         const doneBlock = document.getElementById('task-done-block');
         const doneToggle = document.getElementById('task-done-toggle');
         const doneInner = document.getElementById('task-done-inner');
         const countEl = document.getElementById('task-count');
+        const needle = taskSearchNeedle();
 
         if (tasks.length === 0) {
             activeRoot.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyTasks') + '</div>';
             doneBlock.style.display = 'none';
             doneInner.innerHTML = '';
+            doneToggle.dataset.searchLock = 'false';
             countEl.textContent = '';
             return;
         }
 
-        const openIndices = tasks.map((_, i) => i).filter(i => !tasks[i].done).sort(painting.areas.length ? compareTaskOrder : compareOpenIndices);
-        const doneIndices = tasks.map((_, i) => i).filter(i => tasks[i].done).sort(painting.areas.length ? compareTaskOrder : compareDoneIndices);
+        const openIndices = tasks.map((_, i) => i).filter(i => !tasks[i].done && taskMatchesSearch(tasks[i])).sort(painting.areas.length ? compareTaskOrder : compareOpenIndices);
+        const doneIndices = tasks.map((_, i) => i).filter(i => tasks[i].done && taskMatchesSearch(tasks[i])).sort(painting.areas.length ? compareTaskOrder : compareDoneIndices);
+
+        if (needle && openIndices.length === 0 && doneIndices.length === 0) {
+            activeRoot.innerHTML = '<div class="empty-state">' + I18n.t('tasks.searchEmpty') + '</div>';
+            doneBlock.style.display = 'none';
+            doneInner.innerHTML = '';
+            doneToggle.dataset.searchLock = 'true';
+            countEl.textContent = I18n.t('tasks.searchCount').replace('{count}', '0');
+            return;
+        }
 
         activeRoot.innerHTML = '';
         if (openIndices.length === 0) {
-            activeRoot.innerHTML = '<div class="empty-state">' + I18n.t('tasks.emptyActiveTasks') + '</div>';
+            activeRoot.innerHTML = needle ? '' : '<div class="empty-state">' + I18n.t('tasks.emptyActiveTasks') + '</div>';
+        } else if (painting.areas.length) {
+            renderTaskPaintingGroups(activeRoot, openIndices, 'o:');
         } else {
-            if (painting.areas.length) renderTaskPaintingGroups(activeRoot, openIndices, 'o:');
-            else renderGroupedByMonth(activeRoot, openIndices, taskMonthKeyOpen, 'o:');
+            renderGroupedByMonth(activeRoot, openIndices, taskMonthKeyOpen, 'o:');
         }
 
         if (doneIndices.length === 0) {
             doneBlock.style.display = 'none';
             doneInner.innerHTML = '';
+            doneToggle.dataset.searchLock = needle ? 'true' : 'false';
         } else {
             doneBlock.style.display = 'block';
-            const hidden = !!taskUICollapsed.doneHidden;
+            const hidden = !!taskUICollapsed.doneHidden && !needle;
+            doneToggle.dataset.searchLock = needle ? 'true' : 'false';
             doneToggle.textContent = `${hidden ? '\u25b8' : '\u25be'} ${I18n.t('tasks.completed')} (${doneIndices.length})`;
             doneInner.innerHTML = '';
             if (!hidden) {
@@ -1734,8 +1909,11 @@
             }
         }
 
-        const done = doneIndices.length;
-        countEl.textContent = I18n.t('tasks.taskCountSummary').replace('{done}', String(done)).replace('{total}', String(tasks.length));
+        if (needle) {
+            countEl.textContent = I18n.t('tasks.searchCount').replace('{count}', String(openIndices.length + doneIndices.length));
+        } else {
+            countEl.textContent = I18n.t('tasks.taskCountSummary').replace('{done}', String(doneIndices.length)).replace('{total}', String(tasks.length));
+        }
     }
 
     function escapeHtml(str) {
@@ -2013,6 +2191,8 @@
         if (tasks.length === 0) {
             wrap.innerHTML = '<div class="gantt-empty">' + I18n.t('tasks.ganttEmpty') + '</div>';
             ganttRenderedStart = null;
+            ganttSearchScrollReset = false;
+            setGanttSearchCount(0);
             return;
         }
 
@@ -2076,7 +2256,7 @@
             members.forEach((ti) => {
                 const task = tasks[ti];
                 const days = task.days || [];
-                b += `<tr class="gantt-task-row" data-task-index="${ti}"><td class="gantt-task-name${task.done ? ' done-task' : ''}" draggable="true" data-order-task="${ti}" title="${I18n.t('tasks.reorderHint')}"><input type="checkbox" class="gantt-task-check" ${task.done ? 'checked' : ''} onchange="toggleTask(${ti})" aria-label="${escapeHtml(I18n.t('tasks.done') + ': ' + task.text).replace(/"/g, '&quot;')}"><span>${escapeHtml(task.text)}</span></td>`;
+                b += `<tr class="gantt-task-row" data-task-index="${ti}"><td class="gantt-task-name${task.done ? ' done-task' : ''}" draggable="true" data-order-task="${ti}" title="${I18n.t('tasks.reorderHint')}"><input type="checkbox" class="gantt-task-check" ${task.done ? 'checked' : ''} onchange="toggleTask(${ti})" aria-label="${escapeHtml(I18n.t('tasks.done') + ': ' + task.text).replace(/"/g, '&quot;')}"><span>${highlightSearchText(task.text, ganttSearchNeedle())}</span></td>`;
                 for (const { dateStr, dow, monthEnd } of columns) {
                     const isFilled = days.includes(dateStr);
                     const isWeekend = dow === 0 || dow === 6;
@@ -2093,7 +2273,7 @@
             }
             function heading(text, kind, areaId, layerId = null) {
                 const key = encodeURIComponent(JSON.stringify([section, kind, areaId, layerId]));
-                const collapsed = (taskUICollapsed.ganttGroups || []).includes(key);
+                const collapsed = !ganttSearchNeedle() && (taskUICollapsed.ganttGroups || []).includes(key);
                 b += `<tr class="gantt-${kind}-row"><th class="gantt-group-name" scope="row"><button type="button" class="gantt-group-toggle" data-gantt-group="${key}" aria-expanded="${!collapsed}"><span aria-hidden="true">${collapsed ? '\u25b8' : '\u25be'}</span><span class="gantt-group-label">${escapeHtml(text)}</span></button></th><td colspan="${columns.length}" aria-hidden="true"></td></tr>`;
                 return !collapsed;
             }
@@ -2129,22 +2309,27 @@
             return `<table class="gantt-table${painting.areas.length && !ganttSelectedDay ? ' is-grouped' : ''}" style="--gantt-days:${columns.length}"><colgroup><col style="width:var(--gantt-name-width)"><col span="${columns.length}"></colgroup>${buildThead(indices)}`;
         }
 
+        const needle = ganttSearchNeedle();
         const openIndices = tasks.map((_, ti) => ti).filter(ti => {
-            if (tasks[ti].done) return false;
+            if (tasks[ti].done || !ganttTaskMatchesSearch(tasks[ti])) return false;
             if (taskUICollapsed.ganttDatedOnly) return taskHasDayInGanttMonth(tasks[ti], y, m);
             if (taskUICollapsed.ganttDatedAny) return taskEditableDays(tasks[ti]).length > 0;
             return true;
         });
         const doneThisMonthIndices = tasks.map((_, ti) => ti).filter(
-            (ti) => tasks[ti].done && taskHasDayInGanttMonth(tasks[ti], y, m)
+            (ti) => tasks[ti].done && taskHasDayInGanttMonth(tasks[ti], y, m) && ganttTaskMatchesSearch(tasks[ti])
         );
 
         const visibleIndices = ganttSelectedDay
-            ? tasks.map((_, ti) => ti).filter(i => (tasks[i].days || []).includes(ganttSelectedDay)).sort((a, b) => tasks[a].done - tasks[b].done)
+            ? tasks.map((_, ti) => ti).filter(i => (tasks[i].days || []).includes(ganttSelectedDay) && ganttTaskMatchesSearch(tasks[i])).sort((a, b) => tasks[a].done - tasks[b].done)
             : openIndices;
-        let mainTable = tableStart(tasks.map((_, ti) => ti));
+        let mainTable = tableStart(needle ? visibleIndices : tasks.map((_, ti) => ti));
         if (visibleIndices.length === 0) {
-            mainTable += `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">${I18n.t('tasks.ganttEmptyRow')}</td></tr></tbody>`;
+            const nothingElse = ganttSelectedDay || doneThisMonthIndices.length === 0;
+            const emptyText = needle ? (nothingElse ? I18n.t('tasks.searchEmpty') : '') : I18n.t('tasks.ganttEmptyRow');
+            mainTable += emptyText
+                ? `<tbody><tr><td class="gantt-empty-row" colspan="${colCount}">${emptyText}</td></tr></tbody>`
+                : '<tbody></tbody>';
         } else {
             mainTable += buildBodyRows(visibleIndices, 'open');
         }
@@ -2152,16 +2337,17 @@
 
         let doneSection = '';
         if (!ganttSelectedDay && doneThisMonthIndices.length > 0) {
-            const hidden = !!taskUICollapsed.ganttDoneHidden;
+            const hidden = !!taskUICollapsed.ganttDoneHidden && !needle;
             const chevron = hidden ? '\u25b8' : '\u25be';
             doneSection = `
                 <div class="gantt-done-block">
-                    <button type="button" class="task-done-toggle" onclick="toggleGanttDoneSection()">${chevron} ${I18n.t('tasks.ganttCompletedThisMonth')} (${doneThisMonthIndices.length})</button>
+                    <button type="button" class="task-done-toggle" data-search-lock="${needle ? 'true' : 'false'}" onclick="toggleGanttDoneSection()">${chevron} ${I18n.t('tasks.ganttCompletedThisMonth')} (${doneThisMonthIndices.length})</button>
                     <div class="gantt-done-inner-wrap" id="gantt-done-inner" style="display:${hidden ? 'none' : 'block'}">
                         ${tableStart(doneThisMonthIndices)}${buildBodyRows(doneThisMonthIndices, 'done')}</table>
                     </div>
                 </div>`;
         }
+        setGanttSearchCount(ganttSelectedDay ? visibleIndices.length : visibleIndices.length + doneThisMonthIndices.length);
 
         wrap.innerHTML = `
             <div class="gantt-wrap-inner">
@@ -2193,13 +2379,15 @@
             const element = wrap.querySelector(selector);
             if (!element) return;
             if (columnWidth) element.scrollLeft = (anchor - rangeStart) * columnWidth;
-            element.scrollTop = scrollTops[i];
+            element.scrollTop = ganttSearchScrollReset ? 0 : scrollTops[i];
             centerGanttMonthLabels(element);
         });
+        ganttSearchScrollReset = false;
         if (ganttDrag?.filled) previewGanttDrag();
     }
 
     function toggleGanttGroup(key) {
+        if (ganttSearchNeedle()) return;
         const collapsed = new Set(taskUICollapsed.ganttGroups || []);
         if (collapsed.has(key)) collapsed.delete(key); else collapsed.add(key);
         taskUICollapsed.ganttGroups = [...collapsed];
